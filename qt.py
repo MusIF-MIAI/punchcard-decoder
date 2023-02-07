@@ -39,9 +39,6 @@ if translate == None:
         translate[tuple(v[1:])] = v[0]
 
 
-for k in translate:
-    print(k)
-
 class ZoomableGraphicsView(QGraphicsView):
     def __init__ (self, parent=None):
         super(ZoomableGraphicsView, self).__init__ (parent)
@@ -175,7 +172,6 @@ class Card(QGraphicsItemGroup):
     def update(self):
         rect = QRect(self.left, self.top, self.right - self.left, self.bottom - self.top)
         self.rect.setRect(rect)
-        # print(rect)
 
         for line in self.rows_lines:
             line.scene().removeItem(line)
@@ -317,7 +313,18 @@ class MainWindow(QMainWindow):
         hor_split.addWidget(self.scene_widget)
         hor_split.addWidget(panel_group)
 
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        font.setPointSize(12)
+        font.setWeight(QFont.Bold)
+        
+        self.text_label = QLabel()
+        self.text_label.setAlignment(Qt.AlignCenter)
+        self.text_label.setContentsMargins(10, 10, 10, 10)
+        self.text_label.setText('•' * self.card_format.columns)
+        self.text_label.setFont(font)
+
         split = QSplitter(Qt.Vertical)
+        split.addWidget(self.text_label)
         split.addWidget(hor_split)
         split.addWidget(self.text_edit)
 
@@ -350,8 +357,6 @@ class MainWindow(QMainWindow):
         self.card_item = Card(None, self.card_format, self.sample, self.got_card_data)
         self.scene.addItem(self.card_item)
 
-        # txt = self.card.dump("xx")
-        # self.text_edit.setText(txt)
 
     def sucachanged(self, pos: QPointF):
         line = self.line.line()
@@ -469,8 +474,9 @@ class MainWindow(QMainWindow):
 
             code_key = tuple(code_key)
             word += translate.get(code_key, '•')
-        print(word)
-        
+
+        self.text_label.setText(word)
+
     def clear(self):
         print("succhia")
 
