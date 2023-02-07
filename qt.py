@@ -9,6 +9,39 @@ from copy import deepcopy
 
 import sys
 
+IBM_MODEL_029_KEYPUNCH = """
+    /&-0123456789ABCDEFGHIJKLMNOPQR/STUVWXYZ:#@'="`.<(+|!$*);^~,%_>? |
+12 / O           OOOOOOOOO                        OOOOOO             |
+11|   O                   OOOOOOOOO                     OOOOOO       |
+ 0|    O                           OOOOOOOOO                  OOOOOO |
+ 1|     O        O        O        O                                 |
+ 2|      O        O        O        O       O     O     O     O      |
+ 3|       O        O        O        O       O     O     O     O     |
+ 4|        O        O        O        O       O     O     O     O    |
+ 5|         O        O        O        O       O     O     O     O   |
+ 6|          O        O        O        O       O     O     O     O  |
+ 7|           O        O        O        O       O     O     O     O |
+ 8|            O        O        O        O OOOOOOOOOOOOOOOOOOOOOOOO |
+ 9|             O        O        O        O                         | 
+  |__________________________________________________________________|"""
+
+translate = None
+if translate == None:
+    translate = {}
+    # Turn the ASCII art sideways and build a hash look up for
+    # column values, for example:
+    #   (O, , ,O, , , , , , , , ):A
+    #   (O, , , ,O, , , , , , , ):B
+    #   (O, , , , ,O, , , , , , ):C
+    rows = IBM_MODEL_029_KEYPUNCH[1:].split('\n')
+    rotated = [[r[i] for r in rows[0:13]] for i in range(5, len(rows[0]) - 1)]
+    for v in rotated:
+        translate[tuple(v[1:])] = v[0]
+
+
+for k in translate:
+    print(k)
+
 class ZoomableGraphicsView(QGraphicsView):
     def __init__ (self, parent=None):
         super(ZoomableGraphicsView, self).__init__ (parent)
@@ -413,6 +446,7 @@ class MainWindow(QMainWindow):
 
             for x in range(self.card_format.columns):
                 bit_str = lambda x: '0' if x else '.'
+
                 dot = data[x][y]
                 line.append(bit_str(dot))
 
@@ -423,7 +457,20 @@ class MainWindow(QMainWindow):
 
         txt = "\n".join(lines)
         self.text_edit.setText(txt)
+        
+        word = ''
 
+        for x in range(self.card_format.columns):
+            code_key = []
+            for y in range(self.card_format.rows):
+                key_str = lambda x: 'O' if x else ' '
+                dot = data[x][y]
+                code_key.append(key_str(dot))
+
+            code_key = tuple(code_key)
+            word += translate.get(code_key, '•')
+        print(word)
+        
     def clear(self):
         print("succhia")
 
