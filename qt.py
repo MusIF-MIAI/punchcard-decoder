@@ -122,7 +122,7 @@ class Card(QGraphicsItemGroup):
     card_format = CardFormat
     image: QImage
 
-    def __init__(self, parent, card_format, image):
+    def __init__(self, parent, card_format, image, set_data):
         super().__init__(parent)
         self.top = 0
         self.right = 0
@@ -136,6 +136,8 @@ class Card(QGraphicsItemGroup):
         self.rect.setPen(QColor(0, 0, 255))
 
         self.addToGroup(self.rect)
+
+        self.set_data = set_data
     
     def update(self):
         rect = QRect(self.left, self.top, self.right - self.left, self.bottom - self.top)
@@ -168,24 +170,34 @@ class Card(QGraphicsItemGroup):
         xs = list(self.card_format.column_x(self.left, self.top, self.right, self.bottom))
         ys = list(self.card_format.row_y(self.left, self.top, self.right, self.bottom))
 
+        data = []
+
         for x in xs:
+            column = []
+            data.append(column)
+
             for y in ys:
                 color = self.image.pixel(x, y)
                 r, g, b, _ = QColor(color).getRgbF()
                 gray = (r + g + b) / 3
 
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
+                one = gray < self.card_format.threshold
 
-                if gray > self.card_format.threshold:
+                column.append(one)
+
+                if one:
+                    dot.setPen(QColor(255, 255, 255))
+                    dot.setBrush(QColor(0, 0, 0))
+                else:
                     dot.setPen(QColor(0, 0, 0))
                     dot.setBrush(QColor(255, 255, 255))
-                else:
-                    dot.setBrush(QColor(0, 0, 0))
-                    dot.setPen(QColor(255, 255, 255))
-
+                
                 self.addToGroup(dot)
                 self.rows_lines.append(dot)
-
+        
+        # move the data thresholding etc out of the ui
+        self.set_data(data)
 
 class MainWindow(QMainWindow):
     """An Application example to draw using a pen """
@@ -302,11 +314,11 @@ class MainWindow(QMainWindow):
 
         self.line = self.scene.addLine(0, 0, 0, 0, QColor(0, 255, 0))
 
-        self.card_item = Card(None, self.card_format, self.sample)
+        self.card_item = Card(None, self.card_format, self.sample, self.got_card_data)
         self.scene.addItem(self.card_item)
 
-        txt = self.card.dump("xx")
-        self.text_edit.setText(txt)
+        # txt = self.card.dump("xx")
+        # self.text_edit.setText(txt)
 
     def sucachanged(self, pos: QPointF):
         line = self.line.line()
@@ -389,6 +401,28 @@ class MainWindow(QMainWindow):
     def update_threshold(self):
         self.card_format.threshold = self.threshold_edit.value()
         self.card_item.update()
+
+    def got_card_data(self, data):
+        h1 = ' ' + '_' * self.card_format.columns  
+        h2 = '/' + ' ' * self.card_format.columns + '|' 
+
+        lines = [h1, h2]
+
+        for y in range(self.card_format.rows):
+            line = ['|']
+
+            for x in range(self.card_format.columns):
+                bit_str = lambda x: '0' if x else '.'
+                dot = data[x][y]
+                line.append(bit_str(dot))
+
+            line.append('|')
+            lines.append("".join(line))
+
+        lines.append('`' + '-' * self.card_format.columns)
+
+        txt = "\n".join(lines)
+        self.text_edit.setText(txt)
 
     def clear(self):
         print("succhia")
