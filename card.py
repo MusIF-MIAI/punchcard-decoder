@@ -90,6 +90,7 @@ class PunchCard(object):
     def __init__(
         self,
         imagereader,
+        drawer=None,
         bright=-1,
         debug=False,
         xstart=0,
@@ -103,6 +104,7 @@ class PunchCard(object):
         self.decoded = []
         self.surface = []
         self.debug = debug
+        self.drawer = drawer
         self.threshold = 0
         self.ymin = ystart
         self.ymax = ystop
@@ -195,6 +197,11 @@ class PunchCard(object):
         hole_height = int(card_height * CARD_HOLE_HEIGHT_RATIO)
         data_top_y = data_begins + hole_height // 2
         col_height = int(card_height * CARD_ROW_HEIGHT_RATIO)
+        
+        if self.drawer:
+            self.drawer.line(0, top_border, self.xsize, top_border)
+            self.drawer.line(0, bottom_border, self.xsize, bottom_border)
+            
         if self.debug:
             # mark up the copy with the edges
             for x in range(self.xmin, self.xmax-1):
