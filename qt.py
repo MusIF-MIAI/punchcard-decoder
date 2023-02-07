@@ -79,23 +79,31 @@ class CardFormat:
     left_margin: float
     columns_spacing: float
     rows_spacing: float
+
+    threshold: float
     
-    def row_lines(self, left, top, right, bottom):
+    def row_y(self, left, top, right, bottom):
         vertical_scale = (bottom - top) / self.reference_width
         y = top + vertical_scale * self.top_margin
-        
         for _ in range(self.rows):
-            yield (left, y, right, y)
+            yield y
             y += vertical_scale * self.rows_spacing
 
-    def column_lines(self, left, top, right, bottom):
+    def column_x(self, left, top, right, bottom):
         horizontal_scale = (right - left) / self.reference_width
         x = left + horizontal_scale * self.left_margin
         
         for _ in range(self.columns):
-            yield x, top, x, bottom
+            yield x
             x += horizontal_scale * self.columns_spacing
 
+    def row_lines(self, left, top, right, bottom):
+        return ((left, y, right, y) 
+            for y in self.row_y(left, top, right, bottom))
+
+    def column_lines(self, left, top, right, bottom):
+        return ((x, top, x, bottom) 
+            for x in self.column_x(left, top, right, bottom))
 
 test_format = CardFormat(
     columns=80,
@@ -104,20 +112,24 @@ test_format = CardFormat(
     top_margin=0.56,
     left_margin=0.25,
     rows_spacing=0.56,
-    columns_spacing=0.088
+    columns_spacing=0.088,
+
+    threshold=0.2
 )
 
 class Card(QGraphicsItemGroup):
     rows_lines = [QGraphicsLineItem]
     card_format = CardFormat
+    image: QImage
 
-    def __init__(self, parent, card_format):
+    def __init__(self, parent, card_format, image):
         super().__init__(parent)
         self.top = 0
         self.right = 0
         self.bottom = 0
         self.left = 0
 
+        self.image = image
         self.card_format = card_format
         self.rows_lines = []
         self.rect = QGraphicsRectItem()
@@ -152,6 +164,27 @@ class Card(QGraphicsItemGroup):
             line_item.setPen(QColor(0, 255, 255))
             self.addToGroup(line_item)
             self.rows_lines.append(line_item)
+        
+        xs = list(self.card_format.column_x(self.left, self.top, self.right, self.bottom))
+        ys = list(self.card_format.row_y(self.left, self.top, self.right, self.bottom))
+
+        for x in xs:
+            for y in ys:
+                color = self.image.pixel(x, y)
+                r, g, b, _ = QColor(color).getRgbF()
+                gray = (r + g + b) / 3
+
+                dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
+
+                if gray > self.card_format.threshold:
+                    dot.setPen(QColor(0, 0, 0))
+                    dot.setBrush(QColor(255, 255, 255))
+                else:
+                    dot.setBrush(QColor(0, 0, 0))
+                    dot.setPen(QColor(255, 255, 255))
+
+                self.addToGroup(dot)
+                self.rows_lines.append(dot)
 
 
 class MainWindow(QMainWindow):
@@ -226,6 +259,13 @@ class MainWindow(QMainWindow):
         self.columns_spacing_edit.valueChanged.connect(self.update_columns_spacing)
         panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
         
+        self.threshold_edit = QDoubleSpinBox() 
+        self.threshold_edit.setSingleStep(0.01)
+        self.threshold_edit.setMinimumWidth(minimum_spin_size)
+        self.threshold_edit.setValue(self.card_format.threshold)
+        self.threshold_edit.valueChanged.connect(self.update_threshold)
+        panel_layout.addRow("Threshold", self.threshold_edit)
+
         panel_group.setLayout(panel_layout)
 
         hor_split = QSplitter(Qt.Horizontal)
@@ -262,7 +302,7 @@ class MainWindow(QMainWindow):
 
         self.line = self.scene.addLine(0, 0, 0, 0, QColor(0, 255, 0))
 
-        self.card_item = Card(None, self.card_format)
+        self.card_item = Card(None, self.card_format, self.sample)
         self.scene.addItem(self.card_item)
 
         txt = self.card.dump("xx")
@@ -344,6 +384,10 @@ class MainWindow(QMainWindow):
 
     def update_columns_spacing(self):
         self.card_format.columns_spacing = self.columns_spacing_edit.value()
+        self.card_item.update()
+        
+    def update_threshold(self):
+        self.card_format.threshold = self.threshold_edit.value()
         self.card_item.update()
 
     def clear(self):
