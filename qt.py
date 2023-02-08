@@ -2,8 +2,6 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import *
 
-from card import ImageReader, PunchCard
-
 from dataclasses import dataclass
 from copy import deepcopy
 
@@ -25,19 +23,20 @@ IBM_MODEL_029_KEYPUNCH = """
  9|             O        O        O        O                         | 
   |__________________________________________________________________|"""
 
-translate = None
-if translate == None:
-    translate = {}
+def master_card_to_map(master_card_string):
     # Turn the ASCII art sideways and build a hash look up for
     # column values, for example:
     #   (O, , ,O, , , , , , , , ):A
     #   (O, , , ,O, , , , , , , ):B
     #   (O, , , , ,O, , , , , , ):C
-    rows = IBM_MODEL_029_KEYPUNCH[1:].split('\n')
+    rows = master_card_string[1:].split('\n')
     rotated = [[r[i] for r in rows[0:13]] for i in range(5, len(rows[0]) - 1)]
+    translate = {}
     for v in rotated:
         translate[tuple(v[1:])] = v[0]
+    return translate
 
+translate = master_card_to_map(IBM_MODEL_029_KEYPUNCH)
 
 class ZoomableGraphicsView(QGraphicsView):
     def __init__ (self, parent=None):
@@ -53,29 +52,6 @@ class ZoomableGraphicsView(QGraphicsView):
         self.scale(zoomFactor, zoomFactor)
         self.setTransformationAnchor(oldAnchor)
 
-class QPixmapImageReader(ImageReader):
-    qpix: QPixmap
-
-    def __init__(self, qpix):
-        self.qpix = qpix
-
-    def size(self):
-        return (int(self.qpix.size().width()),
-                int(self.qpix.size().height()))
-
-    def get_pixel(self, x, y):
-        return QColor(self.qpix.pixel(x, y)).getRgb()
-
-class Drawer(object):
-    scene: QGraphicsScene
-
-    def __init__(self, scene: QGraphicsScene):
-        self.scene = scene
-        
-    def line(self, x1, y1, x2, y2):
-        self.scene.addLine(
-            x1, y1, x2, y2,
-            QColor.fromRgba(0xffff0000))
 
 class Dot(QGraphicsItemGroup):
     def __init__(self, parent):
@@ -336,13 +312,6 @@ class MainWindow(QMainWindow):
         self.sample = QImage("examples/foto.png")
         self.sample_pixmap = QPixmap(self.sample)
         self.sample_item = self.scene.addPixmap(self.sample_pixmap)
-
-        self.drawer = Drawer(self.scene)
-        self.reader = QPixmapImageReader(self.sample)
-        self.card = PunchCard(
-            self.reader, 
-            drawer=self.drawer
-        )
 
         self.suca = Dot(None)
         self.suca.changed = self.sucachanged
