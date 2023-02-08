@@ -23,6 +23,7 @@ IBM_MODEL_029_KEYPUNCH = """
  9|             O        O        O        O                         | 
   |__________________________________________________________________|"""
 
+
 def master_card_to_map(master_card_string):
     # Turn the ASCII art sideways and build a hash look up for
     # column values, for example:
@@ -36,11 +37,13 @@ def master_card_to_map(master_card_string):
         translate[tuple(v[1:])] = v[0]
     return translate
 
+
 translate = master_card_to_map(IBM_MODEL_029_KEYPUNCH)
 
+
 class ZoomableGraphicsView(QGraphicsView):
-    def __init__ (self, parent=None):
-        super(ZoomableGraphicsView, self).__init__ (parent)
+    def __init__(self, parent=None):
+        super(ZoomableGraphicsView, self).__init__(parent)
 
     def wheelEvent(self, event: QWheelEvent):
         oldAnchor = self.transformationAnchor()
@@ -56,7 +59,7 @@ class ZoomableGraphicsView(QGraphicsView):
 class Dot(QGraphicsItemGroup):
     def __init__(self, parent):
         super().__init__(parent)
-        
+
         self.suca = QGraphicsEllipseItem()
 
         self.suca.setRect(QRect(-10, -10, 20, 20))
@@ -75,7 +78,8 @@ class Dot(QGraphicsItemGroup):
             self.changed(self.pos())
 
         return super().itemChange(change, value)
-    
+
+
 @dataclass
 class CardFormat:
     columns: int
@@ -87,7 +91,7 @@ class CardFormat:
     rows_spacing: float
 
     threshold: float
-    
+
     def row_y(self, left, top, right, bottom):
         vertical_scale = (bottom - top) / self.reference_width
         y = top + vertical_scale * self.top_margin
@@ -98,18 +102,19 @@ class CardFormat:
     def column_x(self, left, top, right, bottom):
         horizontal_scale = (right - left) / self.reference_width
         x = left + horizontal_scale * self.left_margin
-        
+
         for _ in range(self.columns):
             yield x
             x += horizontal_scale * self.columns_spacing
 
     def row_lines(self, left, top, right, bottom):
-        return ((left, y, right, y) 
-            for y in self.row_y(left, top, right, bottom))
+        return ((left, y, right, y)
+                for y in self.row_y(left, top, right, bottom))
 
     def column_lines(self, left, top, right, bottom):
-        return ((x, top, x, bottom) 
-            for x in self.column_x(left, top, right, bottom))
+        return ((x, top, x, bottom)
+                for x in self.column_x(left, top, right, bottom))
+
 
 test_format = CardFormat(
     columns=80,
@@ -122,6 +127,7 @@ test_format = CardFormat(
 
     threshold=0.2
 )
+
 
 class Card(QGraphicsItemGroup):
     rows_lines = [QGraphicsLineItem]
@@ -144,9 +150,10 @@ class Card(QGraphicsItemGroup):
         self.addToGroup(self.rect)
 
         self.set_data = set_data
-    
+
     def update(self):
-        rect = QRect(self.left, self.top, self.right - self.left, self.bottom - self.top)
+        rect = QRect(self.left, self.top, self.right -
+                     self.left, self.bottom - self.top)
         self.rect.setRect(rect)
 
         for line in self.rows_lines:
@@ -154,7 +161,8 @@ class Card(QGraphicsItemGroup):
 
         self.rows_lines = []
 
-        row_lines = self.card_format.row_lines(self.left, self.top, self.right, self.bottom)
+        row_lines = self.card_format.row_lines(
+            self.left, self.top, self.right, self.bottom)
         for x1, y1, x2, y2 in row_lines:
             line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
             line_item = QGraphicsLineItem()
@@ -162,8 +170,9 @@ class Card(QGraphicsItemGroup):
             line_item.setPen(QColor(255, 0, 255))
             self.addToGroup(line_item)
             self.rows_lines.append(line_item)
-        
-        column_lines = self.card_format.column_lines(self.left, self.top, self.right, self.bottom)
+
+        column_lines = self.card_format.column_lines(
+            self.left, self.top, self.right, self.bottom)
         for x1, y1, x2, y2 in column_lines:
             line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
             line_item = QGraphicsLineItem()
@@ -171,9 +180,11 @@ class Card(QGraphicsItemGroup):
             line_item.setPen(QColor(0, 255, 255))
             self.addToGroup(line_item)
             self.rows_lines.append(line_item)
-        
-        xs = list(self.card_format.column_x(self.left, self.top, self.right, self.bottom))
-        ys = list(self.card_format.row_y(self.left, self.top, self.right, self.bottom))
+
+        xs = list(self.card_format.column_x(
+            self.left, self.top, self.right, self.bottom))
+        ys = list(self.card_format.row_y(
+            self.left, self.top, self.right, self.bottom))
 
         data = []
 
@@ -197,12 +208,13 @@ class Card(QGraphicsItemGroup):
                 else:
                     dot.setPen(QColor(0, 0, 0))
                     dot.setBrush(QColor(255, 255, 255))
-                
+
                 self.addToGroup(dot)
                 self.rows_lines.append(dot)
-        
+
         # move the data thresholding etc out of the ui
         self.set_data(data)
+
 
 class MainWindow(QMainWindow):
     """An Application example to draw using a pen """
@@ -214,7 +226,7 @@ class MainWindow(QMainWindow):
 
         self.scene = QGraphicsScene()
         self.scene_widget = ZoomableGraphicsView(self.scene)
-        
+
         font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
@@ -242,39 +254,41 @@ class MainWindow(QMainWindow):
         self.reference_width_edit.setSingleStep(0.01)
         self.reference_width_edit.setMinimumWidth(minimum_spin_size)
         self.reference_width_edit.setValue(self.card_format.reference_width)
-        self.reference_width_edit.valueChanged.connect(self.update_reference_width)
+        self.reference_width_edit.valueChanged.connect(
+            self.update_reference_width)
         panel_layout.addRow("Reference width", self.reference_width_edit)
 
-        self.top_margin_edit = QDoubleSpinBox() 
+        self.top_margin_edit = QDoubleSpinBox()
         self.top_margin_edit.setSingleStep(0.01)
         self.top_margin_edit.setMinimumWidth(minimum_spin_size)
         self.top_margin_edit.setValue(self.card_format.top_margin)
         self.top_margin_edit.valueChanged.connect(self.update_top_margin)
         panel_layout.addRow("Top Margin", self.top_margin_edit)
 
-        self.left_margin_edit = QDoubleSpinBox() 
+        self.left_margin_edit = QDoubleSpinBox()
         self.left_margin_edit.setSingleStep(0.01)
         self.left_margin_edit.setMinimumWidth(minimum_spin_size)
         self.left_margin_edit.setValue(self.card_format.left_margin)
         self.left_margin_edit.valueChanged.connect(self.update_left_margin)
         panel_layout.addRow("Left Margin", self.left_margin_edit)
 
-        self.rows_spacing_edit = QDoubleSpinBox() 
+        self.rows_spacing_edit = QDoubleSpinBox()
         self.rows_spacing_edit.setSingleStep(0.01)
         self.rows_spacing_edit.setMinimumWidth(minimum_spin_size)
         self.rows_spacing_edit.setValue(self.card_format.rows_spacing)
         self.rows_spacing_edit.valueChanged.connect(self.update_rows_spacing)
         panel_layout.addRow("Rows Spacing", self.rows_spacing_edit)
 
-        self.columns_spacing_edit = QDoubleSpinBox() 
+        self.columns_spacing_edit = QDoubleSpinBox()
         self.columns_spacing_edit.setSingleStep(0.01)
         self.columns_spacing_edit.setDecimals(3)
         self.columns_spacing_edit.setMinimumWidth(minimum_spin_size)
         self.columns_spacing_edit.setValue(self.card_format.columns_spacing)
-        self.columns_spacing_edit.valueChanged.connect(self.update_columns_spacing)
+        self.columns_spacing_edit.valueChanged.connect(
+            self.update_columns_spacing)
         panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
-        
-        self.threshold_edit = QDoubleSpinBox() 
+
+        self.threshold_edit = QDoubleSpinBox()
         self.threshold_edit.setSingleStep(0.01)
         self.threshold_edit.setMinimumWidth(minimum_spin_size)
         self.threshold_edit.setValue(self.card_format.threshold)
@@ -290,7 +304,7 @@ class MainWindow(QMainWindow):
         font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         font.setPointSize(12)
         font.setWeight(QFont.Bold)
-        
+
         self.text_label = QLabel()
         self.text_label.setAlignment(Qt.AlignCenter)
         self.text_label.setContentsMargins(10, 10, 10, 10)
@@ -316,9 +330,9 @@ class MainWindow(QMainWindow):
         self.suca1.changed = self.suca1changed
         self.scene.addItem(self.suca1)
 
-        self.card_item = Card(None, self.card_format, self.sample, self.got_card_data)
+        self.card_item = Card(None, self.card_format,
+                              self.sample, self.got_card_data)
         self.scene.addItem(self.card_item)
-
 
     def sucachanged(self, pos: QPointF):
         self.card_item.left = pos.x()
@@ -337,10 +351,10 @@ class MainWindow(QMainWindow):
     def update_rows(self):
         self.card_format.rows = self.rows_edit.value()
         self.card_item.update()
-        
+
     def update_reference_width(self):
         self.card_format.reference_width = self.reference_width_edit.value()
-        self.card_item.update()        
+        self.card_item.update()
 
     def update_top_margin(self):
         self.card_format.top_margin = self.top_margin_edit.value()
@@ -357,14 +371,14 @@ class MainWindow(QMainWindow):
     def update_columns_spacing(self):
         self.card_format.columns_spacing = self.columns_spacing_edit.value()
         self.card_item.update()
-        
+
     def update_threshold(self):
         self.card_format.threshold = self.threshold_edit.value()
         self.card_item.update()
 
     def got_card_data(self, data):
-        h1 = ' ' + '_' * self.card_format.columns  
-        h2 = '/' + ' ' * self.card_format.columns + '|' 
+        h1 = ' ' + '_' * self.card_format.columns
+        h2 = '/' + ' ' * self.card_format.columns + '|'
 
         lines = [h1, h2]
 
@@ -372,7 +386,7 @@ class MainWindow(QMainWindow):
             line = ['|']
 
             for x in range(self.card_format.columns):
-                bit_str = lambda x: '0' if x else '.'
+                def bit_str(x): return '0' if x else '.'
 
                 dot = data[x][y]
                 line.append(bit_str(dot))
@@ -384,13 +398,13 @@ class MainWindow(QMainWindow):
 
         txt = "\n".join(lines)
         self.text_edit.setText(txt)
-        
+
         word = ''
 
         for x in range(self.card_format.columns):
             code_key = []
             for y in range(self.card_format.rows):
-                key_str = lambda x: 'O' if x else ' '
+                def key_str(x): return 'O' if x else ' '
                 dot = data[x][y]
                 code_key.append(key_str(dot))
 
@@ -408,9 +422,10 @@ class MainWindow(QMainWindow):
         dialog.setMimeTypeFilters(mime_type_filters)
         dialog.setFileMode(QFileDialog.AnyFile)
         dialog.setDefaultSuffix("png")
-        dialog.setDirectory(QStandardPaths.writableLocation(QStandardPaths.PicturesLocation))
+        dialog.setDirectory(QStandardPaths.writableLocation(
+            QStandardPaths.PicturesLocation))
         return dialog
-    
+
     def make_toolbar(self):
         bar = self.addToolBar("Menu")
         bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
@@ -441,11 +456,11 @@ class MainWindow(QMainWindow):
 
         self.color = Qt.black
         self.set_color(self.color)
-        
+
         self.color_action = QAction(self)
         self.color_action.triggered.connect(self.on_color_clicked)
         bar.addAction(self.color_action)
-        
+
         return bar
 
     @Slot()
@@ -488,5 +503,3 @@ if __name__ == "__main__":
     w = MainWindow()
     w.show()
     sys.exit(app.exec())
-
-
