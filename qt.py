@@ -81,6 +81,14 @@ class Dot(QGraphicsItemGroup):
 
 
 @dataclass
+class CardGeometry:
+    top: int
+    right: int
+    bottom: int
+    left: int
+
+
+@dataclass
 class CardFormat:
     columns: int
     rows: int
@@ -92,28 +100,30 @@ class CardFormat:
 
     threshold: float
 
-    def row_y(self, left, top, right, bottom):
-        vertical_scale = (bottom - top) / self.reference_width
-        y = top + vertical_scale * self.top_margin
+    def row_y(self, card_geo: CardGeometry):
+        vertical_scale = (card_geo.bottom - card_geo.top) / \
+            self.reference_width
+        y = card_geo.top + vertical_scale * self.top_margin
         for _ in range(self.rows):
             yield y
             y += vertical_scale * self.rows_spacing
 
-    def column_x(self, left, top, right, bottom):
-        horizontal_scale = (right - left) / self.reference_width
-        x = left + horizontal_scale * self.left_margin
+    def column_x(self, card_geo: CardGeometry):
+        horizontal_scale = (card_geo.right - card_geo.left) / \
+            self.reference_width
+        x = card_geo.left + horizontal_scale * self.left_margin
 
         for _ in range(self.columns):
             yield x
             x += horizontal_scale * self.columns_spacing
 
-    def row_lines(self, left, top, right, bottom):
-        return ((left, y, right, y)
-                for y in self.row_y(left, top, right, bottom))
+    def row_lines(self, card_geo: CardGeometry):
+        return ((card_geo.left, y, card_geo.right, y)
+                for y in self.row_y(card_geo))
 
-    def column_lines(self, left, top, right, bottom):
-        return ((x, top, x, bottom)
-                for x in self.column_x(left, top, right, bottom))
+    def column_lines(self, card_geo: CardGeometry):
+        return ((x, card_geo.top, x, card_geo.bottom)
+                for x in self.column_x(card_geo))
 
 
 test_format = CardFormat(
@@ -127,14 +137,6 @@ test_format = CardFormat(
 
     threshold=0.2
 )
-
-
-@dataclass
-class CardGeometry:
-    top: int
-    right: int
-    bottom: int
-    left: int
 
 
 class MainWindow(QMainWindow):
@@ -313,8 +315,7 @@ class MainWindow(QMainWindow):
 
         self.rows_lines = []
 
-        row_lines = self.card_format.row_lines(
-            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom)
+        row_lines = self.card_format.row_lines(self.card_item)
 
         for x1, y1, x2, y2 in row_lines:
             line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
@@ -324,8 +325,7 @@ class MainWindow(QMainWindow):
             self.scene.addItem(line_item)
             self.rows_lines.append(line_item)
 
-        column_lines = self.card_format.column_lines(
-            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom)
+        column_lines = self.card_format.column_lines(self.card_item)
         for x1, y1, x2, y2 in column_lines:
             line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
             line_item = QGraphicsLineItem()
@@ -334,10 +334,8 @@ class MainWindow(QMainWindow):
             self.scene.addItem(line_item)
             self.rows_lines.append(line_item)
 
-        xs = list(self.card_format.column_x(
-            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom))
-        ys = list(self.card_format.row_y(
-            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom))
+        xs = list(self.card_format.column_x(self.card_item))
+        ys = list(self.card_format.row_y(self.card_item))
 
         data = []
 
