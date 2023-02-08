@@ -316,24 +316,16 @@ class MainWindow(QMainWindow):
         self.suca1.changed = self.suca1changed
         self.scene.addItem(self.suca1)
 
-        self.line = self.scene.addLine(0, 0, 0, 0, QColor(0, 255, 0))
-
         self.card_item = Card(None, self.card_format, self.sample, self.got_card_data)
         self.scene.addItem(self.card_item)
 
 
     def sucachanged(self, pos: QPointF):
-        line = self.line.line()
-        line.setP1(pos.toPoint())
-        self.line.setLine(line)
         self.card_item.left = pos.x()
         self.card_item.top = pos.y()
         self.card_item.update()
 
     def suca1changed(self, pos):
-        line = self.line.line()
-        line.setP2(pos.toPoint())
-        self.line.setLine(line)
         self.card_item.right = pos.x()
         self.card_item.bottom = pos.y()
         self.card_item.update()
