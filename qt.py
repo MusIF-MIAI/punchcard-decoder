@@ -154,6 +154,7 @@ class MainWindow(QMainWindow):
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
         self.text_edit.setFont(font)
+        self.text_edit.setMinimumHeight(200)
 
         panel_group = QGroupBox("Card format")
         panel_group.setFlat(True)
@@ -363,28 +364,6 @@ class MainWindow(QMainWindow):
                 self.scene.addItem(dot)
                 self.rows_lines.append(dot)
 
-        h1 = ' ' + '_' * self.card_format.columns
-        h2 = '/' + ' ' * self.card_format.columns + '|'
-
-        lines = [h1, h2]
-
-        for y in range(self.card_format.rows):
-            line = ['|']
-
-            for x in range(self.card_format.columns):
-                def bit_str(x): return '0' if x else '.'
-
-                dot = data[x][y]
-                line.append(bit_str(dot))
-
-            line.append('|')
-            lines.append("".join(line))
-
-        lines.append('`' + '-' * self.card_format.columns)
-
-        txt = "\n".join(lines)
-        self.text_edit.setText(txt)
-
         word = ''
 
         for x in range(self.card_format.columns):
@@ -398,6 +377,29 @@ class MainWindow(QMainWindow):
             word += translate.get(code_key, '•')
 
         self.text_label.setText(word)
+
+        h1 = '  ' + '_' * self.card_format.columns
+        h2 = '/ ' + ' ' * self.card_format.columns + '|'
+        t  = '| ' + word + ' ' * (self.card_format.columns - len(word)) + '|'
+        lines = [h1, h2, t]
+
+        for y in range(self.card_format.rows):
+            line = ['| ']
+
+            for x in range(self.card_format.columns):
+                def bit_str(x): return '0' if x else '.'
+
+                dot = data[x][y]
+                line.append(bit_str(dot))
+
+            line.append('|')
+            lines.append("".join(line))
+
+        lines.append('`-' + '-' * self.card_format.columns)
+
+        txt = "\n".join(lines)
+        self.text_edit.setText(txt)
+
 
     def clear(self):
         print("succhia")
