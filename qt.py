@@ -214,8 +214,6 @@ class MainWindow(QMainWindow):
 
         self.scene = QGraphicsScene()
         self.scene_widget = ZoomableGraphicsView(self.scene)
-
-        self.bar = self.make_toolbar()
         
         font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
         self.text_edit = QTextEdit()
@@ -306,9 +304,6 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(split)
 
-        self.color = Qt.black
-        self.set_color(self.color)
-
         self.sample = QImage("examples/foto.png")
         self.sample_pixmap = QPixmap(self.sample)
         self.sample_item = self.scene.addPixmap(self.sample_pixmap)
@@ -342,40 +337,6 @@ class MainWindow(QMainWindow):
         self.card_item.right = pos.x()
         self.card_item.bottom = pos.y()
         self.card_item.update()
-
-    def make_toolbar(self):
-        bar = self.addToolBar("Menu")
-        bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-
-        self._save_action = bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogSaveButton),
-            "Save",
-            self.on_save
-        )
-
-        self._save_action.setShortcut(QKeySequence.Save)
-
-        self._open_action = bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogOpenButton),
-            "Open",
-            self.on_open
-        )
-
-        self._open_action.setShortcut(QKeySequence.Open)
-
-        bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogResetButton),
-            "Clear",
-            self.clear,
-        )
-
-        bar.addSeparator()
-
-        self.color_action = QAction(self)
-        self.color_action.triggered.connect(self.on_color_clicked)
-        bar.addAction(self.color_action)
-        
-        return bar
 
     def update_columns(self):
         self.card_format.columns = self.columns_edit.value()
@@ -457,7 +418,44 @@ class MainWindow(QMainWindow):
         dialog.setDefaultSuffix("png")
         dialog.setDirectory(QStandardPaths.writableLocation(QStandardPaths.PicturesLocation))
         return dialog
+    
+    def make_toolbar(self):
+        bar = self.addToolBar("Menu")
+        bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
+        self._save_action = bar.addAction(
+            qApp.style().standardIcon(QStyle.SP_DialogSaveButton),
+            "Save",
+            self.on_save
+        )
+
+        self._save_action.setShortcut(QKeySequence.Save)
+
+        self._open_action = bar.addAction(
+            qApp.style().standardIcon(QStyle.SP_DialogOpenButton),
+            "Open",
+            self.on_open
+        )
+
+        self._open_action.setShortcut(QKeySequence.Open)
+
+        bar.addAction(
+            qApp.style().standardIcon(QStyle.SP_DialogResetButton),
+            "Clear",
+            self.clear,
+        )
+
+        bar.addSeparator()
+
+        self.color = Qt.black
+        self.set_color(self.color)
         
+        self.color_action = QAction(self)
+        self.color_action.triggered.connect(self.on_color_clicked)
+        bar.addAction(self.color_action)
+        
+        return bar
+
     @Slot()
     def on_save(self):
         dialog = self.dialog("Save File")
