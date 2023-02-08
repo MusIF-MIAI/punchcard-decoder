@@ -129,91 +129,12 @@ test_format = CardFormat(
 )
 
 
-class Card(QGraphicsItemGroup):
-    rows_lines = [QGraphicsLineItem]
-    card_format = CardFormat
-    image: QImage
-
-    def __init__(self, parent, card_format, image, set_data):
-        super().__init__(parent)
-        self.top = 0
-        self.right = 0
-        self.bottom = 0
-        self.left = 0
-
-        self.image = image
-        self.card_format = card_format
-        self.rows_lines = []
-        self.rect = QGraphicsRectItem()
-        self.rect.setPen(QColor(0, 0, 255))
-
-        self.addToGroup(self.rect)
-
-        self.set_data = set_data
-
-    def update(self):
-        rect = QRect(self.left, self.top, self.right -
-                     self.left, self.bottom - self.top)
-        self.rect.setRect(rect)
-
-        for line in self.rows_lines:
-            line.scene().removeItem(line)
-
-        self.rows_lines = []
-
-        row_lines = self.card_format.row_lines(
-            self.left, self.top, self.right, self.bottom)
-        for x1, y1, x2, y2 in row_lines:
-            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
-            line_item = QGraphicsLineItem()
-            line_item.setLine(line)
-            line_item.setPen(QColor(255, 0, 255))
-            self.addToGroup(line_item)
-            self.rows_lines.append(line_item)
-
-        column_lines = self.card_format.column_lines(
-            self.left, self.top, self.right, self.bottom)
-        for x1, y1, x2, y2 in column_lines:
-            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
-            line_item = QGraphicsLineItem()
-            line_item.setLine(line)
-            line_item.setPen(QColor(0, 255, 255))
-            self.addToGroup(line_item)
-            self.rows_lines.append(line_item)
-
-        xs = list(self.card_format.column_x(
-            self.left, self.top, self.right, self.bottom))
-        ys = list(self.card_format.row_y(
-            self.left, self.top, self.right, self.bottom))
-
-        data = []
-
-        for x in xs:
-            column = []
-            data.append(column)
-
-            for y in ys:
-                color = self.image.pixel(x, y)
-                r, g, b, _ = QColor(color).getRgbF()
-                gray = (r + g + b) / 3
-
-                dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
-                one = gray < self.card_format.threshold
-
-                column.append(one)
-
-                if one:
-                    dot.setPen(QColor(255, 255, 255))
-                    dot.setBrush(QColor(0, 0, 0))
-                else:
-                    dot.setPen(QColor(0, 0, 0))
-                    dot.setBrush(QColor(255, 255, 255))
-
-                self.addToGroup(dot)
-                self.rows_lines.append(dot)
-
-        # move the data thresholding etc out of the ui
-        self.set_data(data)
+@dataclass
+class CardGeometry:
+    top: int
+    right: int
+    bottom: int
+    left: int
 
 
 class MainWindow(QMainWindow):
@@ -330,53 +251,120 @@ class MainWindow(QMainWindow):
         self.suca1.changed = self.suca1changed
         self.scene.addItem(self.suca1)
 
-        self.card_item = Card(None, self.card_format,
-                              self.sample, self.got_card_data)
-        self.scene.addItem(self.card_item)
+        self.card_item = CardGeometry(0, 0, 0, 0)
+
+        self.rect = QGraphicsRectItem()
+        self.rect.setPen(QColor(0, 0, 255))
+        self.scene.addItem(self.rect)
+
+        self.rows_lines = []
 
     def sucachanged(self, pos: QPointF):
         self.card_item.left = pos.x()
         self.card_item.top = pos.y()
-        self.card_item.update()
+        self.update()
 
     def suca1changed(self, pos):
         self.card_item.right = pos.x()
         self.card_item.bottom = pos.y()
-        self.card_item.update()
+        self.update()
 
     def update_columns(self):
         self.card_format.columns = self.columns_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_rows(self):
         self.card_format.rows = self.rows_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_reference_width(self):
         self.card_format.reference_width = self.reference_width_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_top_margin(self):
         self.card_format.top_margin = self.top_margin_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_left_margin(self):
         self.card_format.left_margin = self.left_margin_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_rows_spacing(self):
         self.card_format.rows_spacing = self.rows_spacing_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_columns_spacing(self):
         self.card_format.columns_spacing = self.columns_spacing_edit.value()
-        self.card_item.update()
+        self.update()
 
     def update_threshold(self):
         self.card_format.threshold = self.threshold_edit.value()
-        self.card_item.update()
+        self.update()
 
-    def got_card_data(self, data):
+    def update(self):
+        rect = QRect(self.card_item.left, self.card_item.top,
+                     self.card_item.right - self.card_item.left,
+                     self.card_item.bottom - self.card_item.top)
+
+        self.rect.setRect(rect)
+
+        for line in self.rows_lines:
+            self.scene.removeItem(line)
+
+        self.rows_lines = []
+
+        row_lines = self.card_format.row_lines(
+            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom)
+
+        for x1, y1, x2, y2 in row_lines:
+            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
+            line_item = QGraphicsLineItem()
+            line_item.setLine(line)
+            line_item.setPen(QColor(255, 0, 255))
+            self.scene.addItem(line_item)
+            self.rows_lines.append(line_item)
+
+        column_lines = self.card_format.column_lines(
+            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom)
+        for x1, y1, x2, y2 in column_lines:
+            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
+            line_item = QGraphicsLineItem()
+            line_item.setLine(line)
+            line_item.setPen(QColor(0, 255, 255))
+            self.scene.addItem(line_item)
+            self.rows_lines.append(line_item)
+
+        xs = list(self.card_format.column_x(
+            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom))
+        ys = list(self.card_format.row_y(
+            self.card_item.left, self.card_item.top, self.card_item.right, self.card_item.bottom))
+
+        data = []
+
+        for x in xs:
+            column = []
+            data.append(column)
+
+            for y in ys:
+                color = self.sample.pixel(x, y)
+                r, g, b, _ = QColor(color).getRgbF()
+                gray = (r + g + b) / 3
+
+                dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
+                one = gray < self.card_format.threshold
+
+                column.append(one)
+
+                if one:
+                    dot.setPen(QColor(255, 255, 255))
+                    dot.setBrush(QColor(0, 0, 0))
+                else:
+                    dot.setPen(QColor(0, 0, 0))
+                    dot.setBrush(QColor(255, 255, 255))
+
+                self.scene.addItem(dot)
+                self.rows_lines.append(dot)
+
         h1 = ' ' + '_' * self.card_format.columns
         h2 = '/' + ' ' * self.card_format.columns + '|'
 
