@@ -197,8 +197,6 @@ test_format = CardFormat(
 
 
 class MainWindow(QMainWindow):
-    """An Application example to draw using a pen """
-
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
 
