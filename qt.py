@@ -126,6 +126,24 @@ class CardFormat:
                 for x in self.column_x(card_geo))
 
 
+def parse_card(image, card_format, card_geo):
+    data = []
+
+    for x in card_format.column_x(card_geo):
+        column = []
+        data.append(column)
+
+        for y in card_format.row_y(card_geo):
+            color = image.pixel(x, y)
+            r, g, b, _ = QColor(color).getRgbF()
+            gray = (r + g + b) / 3
+
+            isHole = gray < card_format.threshold
+            column.append(isHole)
+
+    return data
+
+
 test_format = CardFormat(
     columns=80,
     rows=12,
@@ -308,25 +326,11 @@ class MainWindow(QMainWindow):
             self.scene.addItem(line_item)
             self.rows_lines.append(line_item)
 
-        xs = list(self.card_format.column_x(self.card_item))
-        ys = list(self.card_format.row_y(self.card_item))
+        data = parse_card(self.sample, self.card_format, self.card_item)
 
-        data = []
-
-        for x in xs:
-            column = []
-            data.append(column)
-
-            for y in ys:
-                color = self.sample.pixel(x, y)
-                r, g, b, _ = QColor(color).getRgbF()
-                gray = (r + g + b) / 3
-
+        for (x, column) in zip(self.card_format.column_x(self.card_item), data):
+            for (y, one) in zip(self.card_format.row_y(self.card_item), column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
-                one = gray < self.card_format.threshold
-
-                column.append(one)
-
                 if one:
                     dot.setPen(QColor(255, 255, 255))
                     dot.setBrush(QColor(0, 0, 0))
@@ -372,7 +376,6 @@ class MainWindow(QMainWindow):
 
         txt = "\n".join(lines)
         self.text_edit.setText(txt)
-
 
     def clear(self):
         print("succhia")
