@@ -313,7 +313,7 @@ class MainWindow(QMainWindow):
         self.rect.setPen(QColor(0, 0, 255))
         self.scene.addItem(self.rect)
 
-        self.rows_lines = []
+        self.items_to_delete = []
 
     def ui_changed(self):
         self.card_item.left   = self.suca.pos().x()
@@ -339,10 +339,10 @@ class MainWindow(QMainWindow):
 
         self.rect.setRect(rect)
 
-        for line in self.rows_lines:
+        for line in self.items_to_delete:
             self.scene.removeItem(line)
 
-        self.rows_lines = []
+        self.items_to_delete = []
 
         row_lines = self.card_format.row_lines(self.card_item)
 
@@ -350,14 +350,14 @@ class MainWindow(QMainWindow):
             line_item = QGraphicsLineItem(x1, y1, x2, y2)
             line_item.setPen(QColor(255, 0, 255))
             self.scene.addItem(line_item)
-            self.rows_lines.append(line_item)
+            self.items_to_delete.append(line_item)
 
         column_lines = self.card_format.column_lines(self.card_item)
         for x1, y1, x2, y2 in column_lines:
             line_item = QGraphicsLineItem(x1, y1, x2, y2)
             line_item.setPen(QColor(0, 255, 255))
             self.scene.addItem(line_item)
-            self.rows_lines.append(line_item)
+            self.items_to_delete.append(line_item)
 
         data = parse_card(self.sample, self.card_format, self.card_item)
         word = word_from_data(data)
@@ -374,7 +374,7 @@ class MainWindow(QMainWindow):
                     dot.setBrush(QColor(255, 255, 255))
 
                 self.scene.addItem(dot)
-                self.rows_lines.append(dot)
+                self.items_to_delete.append(dot)
 
         self.text_label.setText(word)
         self.text_edit.setText(txt)
