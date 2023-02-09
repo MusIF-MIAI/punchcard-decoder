@@ -347,18 +347,14 @@ class MainWindow(QMainWindow):
         row_lines = self.card_format.row_lines(self.card_item)
 
         for x1, y1, x2, y2 in row_lines:
-            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
-            line_item = QGraphicsLineItem()
-            line_item.setLine(line)
+            line_item = QGraphicsLineItem(x1, y1, x2, y2)
             line_item.setPen(QColor(255, 0, 255))
             self.scene.addItem(line_item)
             self.rows_lines.append(line_item)
 
         column_lines = self.card_format.column_lines(self.card_item)
         for x1, y1, x2, y2 in column_lines:
-            line = QLineF(QPoint(x1, y1), QPoint(x2, y2))
-            line_item = QGraphicsLineItem()
-            line_item.setLine(line)
+            line_item = QGraphicsLineItem(x1, y1, x2, y2)
             line_item.setPen(QColor(0, 255, 255))
             self.scene.addItem(line_item)
             self.rows_lines.append(line_item)
