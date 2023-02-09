@@ -75,7 +75,7 @@ class Dot(QGraphicsItemGroup):
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
         if change == QGraphicsItem.ItemPositionHasChanged:
-            self.changed(self.pos())
+            self.changed()
 
         return super().itemChange(change, value)
 
@@ -165,42 +165,41 @@ class MainWindow(QMainWindow):
         self.columns_edit = QSpinBox()
         self.columns_edit.setValue(self.card_format.columns)
         self.columns_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_edit.valueChanged.connect(self.update_columns)
+        self.columns_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Columns", self.columns_edit)
 
         self.rows_edit = QSpinBox()
         self.rows_edit.setMinimumWidth(minimum_spin_size)
         self.rows_edit.setValue(self.card_format.rows)
-        self.rows_edit.valueChanged.connect(self.update_rows)
+        self.rows_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Rows", self.rows_edit)
 
         self.reference_width_edit = QDoubleSpinBox()
         self.reference_width_edit.setSingleStep(0.01)
         self.reference_width_edit.setMinimumWidth(minimum_spin_size)
         self.reference_width_edit.setValue(self.card_format.reference_width)
-        self.reference_width_edit.valueChanged.connect(
-            self.update_reference_width)
+        self.reference_width_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Reference width", self.reference_width_edit)
 
         self.top_margin_edit = QDoubleSpinBox()
         self.top_margin_edit.setSingleStep(0.01)
         self.top_margin_edit.setMinimumWidth(minimum_spin_size)
         self.top_margin_edit.setValue(self.card_format.top_margin)
-        self.top_margin_edit.valueChanged.connect(self.update_top_margin)
+        self.top_margin_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Top Margin", self.top_margin_edit)
 
         self.left_margin_edit = QDoubleSpinBox()
         self.left_margin_edit.setSingleStep(0.01)
         self.left_margin_edit.setMinimumWidth(minimum_spin_size)
         self.left_margin_edit.setValue(self.card_format.left_margin)
-        self.left_margin_edit.valueChanged.connect(self.update_left_margin)
+        self.left_margin_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Left Margin", self.left_margin_edit)
 
         self.rows_spacing_edit = QDoubleSpinBox()
         self.rows_spacing_edit.setSingleStep(0.01)
         self.rows_spacing_edit.setMinimumWidth(minimum_spin_size)
         self.rows_spacing_edit.setValue(self.card_format.rows_spacing)
-        self.rows_spacing_edit.valueChanged.connect(self.update_rows_spacing)
+        self.rows_spacing_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Rows Spacing", self.rows_spacing_edit)
 
         self.columns_spacing_edit = QDoubleSpinBox()
@@ -208,15 +207,14 @@ class MainWindow(QMainWindow):
         self.columns_spacing_edit.setDecimals(3)
         self.columns_spacing_edit.setMinimumWidth(minimum_spin_size)
         self.columns_spacing_edit.setValue(self.card_format.columns_spacing)
-        self.columns_spacing_edit.valueChanged.connect(
-            self.update_columns_spacing)
+        self.columns_spacing_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
 
         self.threshold_edit = QDoubleSpinBox()
         self.threshold_edit.setSingleStep(0.01)
         self.threshold_edit.setMinimumWidth(minimum_spin_size)
         self.threshold_edit.setValue(self.card_format.threshold)
-        self.threshold_edit.valueChanged.connect(self.update_threshold)
+        self.threshold_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Threshold", self.threshold_edit)
 
         panel_group.setLayout(panel_layout)
@@ -247,11 +245,11 @@ class MainWindow(QMainWindow):
         self.sample_item = self.scene.addPixmap(self.sample_pixmap)
 
         self.suca = Dot(None)
-        self.suca.changed = self.sucachanged
+        self.suca.changed = self.ui_changed
         self.scene.addItem(self.suca)
 
         self.suca1 = Dot(None)
-        self.suca1.changed = self.suca1changed
+        self.suca1.changed = self.ui_changed
         self.scene.addItem(self.suca1)
 
         self.card_item = CardGeometry(0, 0, 0, 0)
@@ -262,46 +260,21 @@ class MainWindow(QMainWindow):
 
         self.rows_lines = []
 
-    def sucachanged(self, pos: QPointF):
-        self.card_item.left = pos.x()
-        self.card_item.top = pos.y()
-        self.update()
+    def ui_changed(self):
+        self.card_item.left   = self.suca.pos().x()
+        self.card_item.top    = self.suca.pos().y()
+        self.card_item.right  = self.suca1.pos().x()
+        self.card_item.bottom = self.suca1.pos().y()
 
-    def suca1changed(self, pos):
-        self.card_item.right = pos.x()
-        self.card_item.bottom = pos.y()
-        self.update()
-
-    def update_columns(self):
-        self.card_format.columns = self.columns_edit.value()
-        self.update()
-
-    def update_rows(self):
-        self.card_format.rows = self.rows_edit.value()
-        self.update()
-
-    def update_reference_width(self):
+        self.card_format.columns         = self.columns_edit.value()
+        self.card_format.rows            = self.rows_edit.value()
         self.card_format.reference_width = self.reference_width_edit.value()
-        self.update()
-
-    def update_top_margin(self):
-        self.card_format.top_margin = self.top_margin_edit.value()
-        self.update()
-
-    def update_left_margin(self):
-        self.card_format.left_margin = self.left_margin_edit.value()
-        self.update()
-
-    def update_rows_spacing(self):
-        self.card_format.rows_spacing = self.rows_spacing_edit.value()
-        self.update()
-
-    def update_columns_spacing(self):
+        self.card_format.top_margin      = self.top_margin_edit.value()
+        self.card_format.left_margin     = self.left_margin_edit.value()
+        self.card_format.rows_spacing    = self.rows_spacing_edit.value()
         self.card_format.columns_spacing = self.columns_spacing_edit.value()
-        self.update()
+        self.card_format.threshold       = self.threshold_edit.value()
 
-    def update_threshold(self):
-        self.card_format.threshold = self.threshold_edit.value()
         self.update()
 
     def update(self):
