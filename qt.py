@@ -144,6 +144,45 @@ def parse_card(image, card_format, card_geo):
     return data
 
 
+def word_from_data(data):
+    word = ''
+
+    for x in data:
+        code_key = []
+        for y in x:
+            def key_str(x): return 'O' if x else ' '
+            dot = y
+            code_key.append(key_str(dot))
+
+        code_key = tuple(code_key)
+        word += translate.get(code_key, '•')
+
+    return word
+
+
+def ascii_card_from_data(data, card_format, word):
+    h1 = '  ' + '_' * card_format.columns
+    h2 = '/ ' + ' ' * card_format.columns + '|'
+    t  = '| ' + word + ' ' * (card_format.columns - len(word)) + '|'
+
+    lines = [h1, h2, t]
+
+    for y in range(card_format.rows):
+        line = ['| ']
+
+        for x in range(card_format.columns):
+            def bit_str(x): return '0' if x else '.'
+
+            dot = data[x][y]
+            line.append(bit_str(dot))
+
+        line.append('|')
+        lines.append("".join(line))
+
+    lines.append('`-' + '-' * card_format.columns)
+    return "\n".join(lines)
+
+
 test_format = CardFormat(
     columns=80,
     rows=12,
@@ -327,6 +366,8 @@ class MainWindow(QMainWindow):
             self.rows_lines.append(line_item)
 
         data = parse_card(self.sample, self.card_format, self.card_item)
+        word = word_from_data(data)
+        txt  = ascii_card_from_data(data, self.card_format, word)
 
         for (x, column) in zip(self.card_format.column_x(self.card_item), data):
             for (y, one) in zip(self.card_format.row_y(self.card_item), column):
@@ -341,40 +382,7 @@ class MainWindow(QMainWindow):
                 self.scene.addItem(dot)
                 self.rows_lines.append(dot)
 
-        word = ''
-
-        for x in range(self.card_format.columns):
-            code_key = []
-            for y in range(self.card_format.rows):
-                def key_str(x): return 'O' if x else ' '
-                dot = data[x][y]
-                code_key.append(key_str(dot))
-
-            code_key = tuple(code_key)
-            word += translate.get(code_key, '•')
-
         self.text_label.setText(word)
-
-        h1 = '  ' + '_' * self.card_format.columns
-        h2 = '/ ' + ' ' * self.card_format.columns + '|'
-        t  = '| ' + word + ' ' * (self.card_format.columns - len(word)) + '|'
-        lines = [h1, h2, t]
-
-        for y in range(self.card_format.rows):
-            line = ['| ']
-
-            for x in range(self.card_format.columns):
-                def bit_str(x): return '0' if x else '.'
-
-                dot = data[x][y]
-                line.append(bit_str(dot))
-
-            line.append('|')
-            lines.append("".join(line))
-
-        lines.append('`-' + '-' * self.card_format.columns)
-
-        txt = "\n".join(lines)
         self.text_edit.setText(txt)
 
     def clear(self):
