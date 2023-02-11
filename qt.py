@@ -200,8 +200,6 @@ class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
 
-        self.card_format = deepcopy(test_format)
-
         self.scene = QGraphicsScene()
         self.scene_widget = ZoomableGraphicsView(self.scene)
 
@@ -218,42 +216,36 @@ class MainWindow(QMainWindow):
         minimum_spin_size = 100
 
         self.columns_edit = QSpinBox()
-        self.columns_edit.setValue(self.card_format.columns)
         self.columns_edit.setMinimumWidth(minimum_spin_size)
         self.columns_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Columns", self.columns_edit)
 
         self.rows_edit = QSpinBox()
         self.rows_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_edit.setValue(self.card_format.rows)
         self.rows_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Rows", self.rows_edit)
 
         self.reference_width_edit = QDoubleSpinBox()
         self.reference_width_edit.setSingleStep(0.01)
         self.reference_width_edit.setMinimumWidth(minimum_spin_size)
-        self.reference_width_edit.setValue(self.card_format.reference_width)
         self.reference_width_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Reference width", self.reference_width_edit)
 
         self.top_margin_edit = QDoubleSpinBox()
         self.top_margin_edit.setSingleStep(0.01)
         self.top_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.top_margin_edit.setValue(self.card_format.top_margin)
         self.top_margin_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Top Margin", self.top_margin_edit)
 
         self.left_margin_edit = QDoubleSpinBox()
         self.left_margin_edit.setSingleStep(0.01)
         self.left_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.left_margin_edit.setValue(self.card_format.left_margin)
         self.left_margin_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Left Margin", self.left_margin_edit)
 
         self.rows_spacing_edit = QDoubleSpinBox()
         self.rows_spacing_edit.setSingleStep(0.01)
         self.rows_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_spacing_edit.setValue(self.card_format.rows_spacing)
         self.rows_spacing_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Rows Spacing", self.rows_spacing_edit)
 
@@ -261,14 +253,12 @@ class MainWindow(QMainWindow):
         self.columns_spacing_edit.setSingleStep(0.01)
         self.columns_spacing_edit.setDecimals(3)
         self.columns_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_spacing_edit.setValue(self.card_format.columns_spacing)
         self.columns_spacing_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
 
         self.threshold_edit = QDoubleSpinBox()
         self.threshold_edit.setSingleStep(0.01)
         self.threshold_edit.setMinimumWidth(minimum_spin_size)
-        self.threshold_edit.setValue(self.card_format.threshold)
         self.threshold_edit.valueChanged.connect(self.ui_changed)
         panel_layout.addRow("Threshold", self.threshold_edit)
 
@@ -285,7 +275,6 @@ class MainWindow(QMainWindow):
         self.text_label = QLabel()
         self.text_label.setAlignment(Qt.AlignCenter)
         self.text_label.setContentsMargins(10, 10, 10, 10)
-        self.text_label.setText('•' * self.card_format.columns)
         self.text_label.setFont(font)
 
         split = QSplitter(Qt.Vertical)
@@ -295,9 +284,8 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(split)
 
-        self.sample = QImage("examples/foto.png")
-        self.sample_pixmap = QPixmap(self.sample)
-        self.sample_item = self.scene.addPixmap(self.sample_pixmap)
+        self.sample_item = QGraphicsPixmapItem()
+        self.scene.addItem(self.sample_item)
 
         self.top_left_handle = Handle(None)
         self.top_left_handle.changed = self.ui_changed
@@ -307,15 +295,41 @@ class MainWindow(QMainWindow):
         self.bottom_right_handle.changed = self.ui_changed
         self.scene.addItem(self.bottom_right_handle)
 
-        self.card_item = CardGeometry(0, 0, 0, 0)
-
         self.rect = QGraphicsRectItem()
         self.rect.setPen(QColor(0, 0, 255))
         self.scene.addItem(self.rect)
 
         self.items_to_delete = []
 
+        self.load_image("examples/foto.png")
+
+    def load_image(self, path: str):
+        self.sample = QImage(path)
+        self.sample_pixmap = QPixmap(self.sample)
+        self.sample_item.setPixmap(self.sample_pixmap)
+        self.card_item = CardGeometry(0, 0, 0, 0)
+        self.card_format = deepcopy(test_format)
+
+        self.set_ui_values()
+
+    def set_ui_values(self):
+        self.top_left_handle.setPos(self.card_item.left, self.card_item.top)
+        self.bottom_right_handle.setPos(self.card_item.right, self.card_item.bottom)
+
+        self.updating = True
+        self.columns_edit.setValue(self.card_format.columns)
+        self.rows_edit.setValue(self.card_format.rows)
+        self.reference_width_edit.setValue(self.card_format.reference_width)
+        self.top_margin_edit.setValue(self.card_format.top_margin)
+        self.left_margin_edit.setValue(self.card_format.left_margin)
+        self.rows_spacing_edit.setValue(self.card_format.rows_spacing)
+        self.columns_spacing_edit.setValue(self.card_format.columns_spacing)
+        self.threshold_edit.setValue(self.card_format.threshold)
+        self.updating = False
+
     def ui_changed(self):
+        if self.updating: return
+
         self.card_item.left   = self.top_left_handle.pos().x()
         self.card_item.top    = self.top_left_handle.pos().y()
         self.card_item.right  = self.bottom_right_handle.pos().x()
