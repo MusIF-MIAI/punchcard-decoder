@@ -183,6 +183,9 @@ class CardRecognizer:
         self.image = QImage(path)
         self.image_pixmap = QPixmap(self.image)
 
+        if self.image_pixmap.isNull():
+            raise Exception(f"cannot open image file at path: {path}")
+
         self.geometry = CardGeometry(0, 0, 0, 0)
         self.format = deepcopy(test_format)
 
@@ -235,6 +238,35 @@ class CardRecognizer:
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
+
+        bar = self.addToolBar("Toolbar")
+        bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+
+        # self.save_action = bar.addAction(
+        #     qApp.style().standardIcon(QStyle.SP_DialogSaveButton),
+        #     "Save",
+        #     self.on_save
+        # )
+        # self.save_action.setShortcut(QKeySequence.Save)
+
+        self.open_action = bar.addAction(
+            self.style().standardIcon(QStyle.SP_DialogOpenButton),
+            "Open",
+            self.on_open
+        )
+        self.open_action.setShortcut(QKeySequence.Open)
+
+        bar.addSeparator()
+
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        font.setPointSize(12)
+        font.setWeight(QFont.Bold)
+
+        self.text_label = QLabel()
+        self.text_label.setAlignment(Qt.AlignCenter)
+        self.text_label.setContentsMargins(10, 10, 10, 10)
+        self.text_label.setFont(font)
+        bar.addWidget(self.text_label)
 
         self.scene = QGraphicsScene()
         self.scene_widget = ZoomableGraphicsView(self.scene)
@@ -304,17 +336,7 @@ class MainWindow(QMainWindow):
         hor_split.addWidget(self.scene_widget)
         hor_split.addWidget(panel_group)
 
-        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        font.setPointSize(12)
-        font.setWeight(QFont.Bold)
-
-        self.text_label = QLabel()
-        self.text_label.setAlignment(Qt.AlignCenter)
-        self.text_label.setContentsMargins(10, 10, 10, 10)
-        self.text_label.setFont(font)
-
         split = QSplitter(Qt.Vertical)
-        split.addWidget(self.text_label)
         split.addWidget(hor_split)
         split.addWidget(self.text_edit)
 
@@ -340,15 +362,23 @@ class MainWindow(QMainWindow):
         self.load_image("examples/foto.png")
 
     def load_image(self, path: str):
-        self.card_recognizer = CardRecognizer("examples/foto.png")
-        self.image_item.setPixmap(self.card_recognizer.image_pixmap)
-        self.set_ui_values()
+        try:
+            self.card_recognizer = CardRecognizer(path)
+            self.image_item.setPixmap(self.card_recognizer.image_pixmap)
+            self.set_ui_values()
+            self.update()
+        except Exception as e:
+            box = QMessageBox()
+            box.setWindowTitle = "Error loading file"
+            box.setText(str(e))
+            box.setIcon(QMessageBox.Critical)
+            box.setStandardButtons(QMessageBox.Ok)
+            box.exec()
 
     def set_ui_values(self):
+        self.updating = True
         self.top_left_handle.setPos(self.card_recognizer.geometry.top_left)
         self.bottom_right_handle.setPos(self.card_recognizer.geometry.bottom_right)
-
-        self.updating = True
         self.columns_edit.setValue(self.card_recognizer.format.columns)
         self.rows_edit.setValue(self.card_recognizer.format.rows)
         self.reference_width_edit.setValue(self.card_recognizer.format.reference_width)
@@ -419,51 +449,9 @@ class MainWindow(QMainWindow):
     def dialog(self, title):
         mime_type_filters = ["image/png", "image/jpeg"]
         dialog = QFileDialog(self, title)
-        dialog.setMimeTypeFilters(mime_type_filters)
         dialog.setFileMode(QFileDialog.AnyFile)
-        dialog.setDefaultSuffix("png")
-        dialog.setDirectory(QStandardPaths.writableLocation(
-            QStandardPaths.PicturesLocation))
         return dialog
 
-    def make_toolbar(self):
-        bar = self.addToolBar("Menu")
-        bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-
-        self._save_action = bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogSaveButton),
-            "Save",
-            self.on_save
-        )
-
-        self._save_action.setShortcut(QKeySequence.Save)
-
-        self._open_action = bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogOpenButton),
-            "Open",
-            self.on_open
-        )
-
-        self._open_action.setShortcut(QKeySequence.Open)
-
-        bar.addAction(
-            qApp.style().standardIcon(QStyle.SP_DialogResetButton),
-            "Clear",
-            self.clear,
-        )
-
-        bar.addSeparator()
-
-        self.color = Qt.black
-        self.set_color(self.color)
-
-        self.color_action = QAction(self)
-        self.color_action.triggered.connect(self.on_color_clicked)
-        bar.addAction(self.color_action)
-
-        return bar
-
-    @Slot()
     def on_save(self):
         dialog = self.dialog("Save File")
         dialog.setAcceptMode(QFileDialog.AcceptSave)
@@ -472,30 +460,13 @@ class MainWindow(QMainWindow):
                 name = dialog.selectedFiles()[0]
                 print(f"save {name}")
 
-    @Slot()
     def on_open(self):
         dialog = self.dialog("Load File")
         dialog.setAcceptMode(QFileDialog.AcceptOpen)
         if dialog.exec() == QFileDialog.Accepted:
             if dialog.selectedFiles():
                 name = dialog.selectedFiles()[0]
-                print(f"load {name}")
-
-    @Slot()
-    def on_color_clicked(self):
-        color = QColorDialog.getColor(self.color, self)
-        if color:
-            self.set_color(color)
-
-    def set_color(self, color: QColor = Qt.black):
-        self.color = color
-
-        # Create color icon
-        pix_icon = QPixmap(32, 32)
-        pix_icon.fill(self.color)
-
-        self.color_action.setIcon(QIcon(pix_icon))
-        self.color_action.setText(QColor(self.color).name())
+                self.load_image(name)
 
 
 if __name__ == "__main__":
