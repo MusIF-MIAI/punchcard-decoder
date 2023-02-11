@@ -284,8 +284,8 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(split)
 
-        self.sample_item = QGraphicsPixmapItem()
-        self.scene.addItem(self.sample_item)
+        self.image_item = QGraphicsPixmapItem()
+        self.scene.addItem(self.image_item)
 
         self.top_left_handle = Handle(None)
         self.top_left_handle.changed = self.ui_changed
@@ -304,17 +304,17 @@ class MainWindow(QMainWindow):
         self.load_image("examples/foto.png")
 
     def load_image(self, path: str):
-        self.sample = QImage(path)
-        self.sample_pixmap = QPixmap(self.sample)
-        self.sample_item.setPixmap(self.sample_pixmap)
-        self.card_item = CardGeometry(0, 0, 0, 0)
+        self.image = QImage(path)
+        self.image_pixmap = QPixmap(self.image)
+        self.image_item.setPixmap(self.image_pixmap)
+        self.card_geo = CardGeometry(0, 0, 0, 0)
         self.card_format = deepcopy(test_format)
 
         self.set_ui_values()
 
     def set_ui_values(self):
-        self.top_left_handle.setPos(self.card_item.left, self.card_item.top)
-        self.bottom_right_handle.setPos(self.card_item.right, self.card_item.bottom)
+        self.top_left_handle.setPos(self.card_geo.left, self.card_geo.top)
+        self.bottom_right_handle.setPos(self.card_geo.right, self.card_geo.bottom)
 
         self.updating = True
         self.columns_edit.setValue(self.card_format.columns)
@@ -330,10 +330,10 @@ class MainWindow(QMainWindow):
     def ui_changed(self):
         if self.updating: return
 
-        self.card_item.left   = self.top_left_handle.pos().x()
-        self.card_item.top    = self.top_left_handle.pos().y()
-        self.card_item.right  = self.bottom_right_handle.pos().x()
-        self.card_item.bottom = self.bottom_right_handle.pos().y()
+        self.card_geo.left   = self.top_left_handle.pos().x()
+        self.card_geo.top    = self.top_left_handle.pos().y()
+        self.card_geo.right  = self.bottom_right_handle.pos().x()
+        self.card_geo.bottom = self.bottom_right_handle.pos().y()
 
         self.card_format.columns         = self.columns_edit.value()
         self.card_format.rows            = self.rows_edit.value()
@@ -347,9 +347,9 @@ class MainWindow(QMainWindow):
         self.update()
 
     def update(self):
-        rect = QRect(self.card_item.left, self.card_item.top,
-                     self.card_item.right - self.card_item.left,
-                     self.card_item.bottom - self.card_item.top)
+        rect = QRect(self.card_geo.left, self.card_geo.top,
+                     self.card_geo.right - self.card_geo.left,
+                     self.card_geo.bottom - self.card_geo.top)
 
         self.rect.setRect(rect)
 
@@ -358,7 +358,7 @@ class MainWindow(QMainWindow):
 
         self.items_to_delete = []
 
-        row_lines = self.card_format.row_lines(self.card_item)
+        row_lines = self.card_format.row_lines(self.card_geo)
 
         for x1, y1, x2, y2 in row_lines:
             line_item = QGraphicsLineItem(x1, y1, x2, y2)
@@ -366,19 +366,19 @@ class MainWindow(QMainWindow):
             self.scene.addItem(line_item)
             self.items_to_delete.append(line_item)
 
-        column_lines = self.card_format.column_lines(self.card_item)
+        column_lines = self.card_format.column_lines(self.card_geo)
         for x1, y1, x2, y2 in column_lines:
             line_item = QGraphicsLineItem(x1, y1, x2, y2)
             line_item.setPen(QColor(0, 255, 255))
             self.scene.addItem(line_item)
             self.items_to_delete.append(line_item)
 
-        data = parse_card(self.sample, self.card_format, self.card_item)
+        data = parse_card(self.image, self.card_format, self.card_geo)
         word = word_from_data(data)
         txt  = ascii_card_from_data(data, self.card_format, word)
 
-        for (x, column) in zip(self.card_format.column_x(self.card_item), data):
-            for (y, one) in zip(self.card_format.row_y(self.card_item), column):
+        for (x, column) in zip(self.card_format.column_x(self.card_geo), data):
+            for (y, one) in zip(self.card_format.row_y(self.card_geo), column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
                 if one:
                     dot.setPen(QColor(255, 255, 255))
@@ -392,9 +392,6 @@ class MainWindow(QMainWindow):
 
         self.text_label.setText(word)
         self.text_edit.setText(txt)
-
-    def clear(self):
-        print("succhia")
 
     def dialog(self, title):
         mime_type_filters = ["image/png", "image/jpeg"]
