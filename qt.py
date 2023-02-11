@@ -87,6 +87,27 @@ class CardGeometry:
     bottom: int
     left: int
 
+    @property
+    def width(self):
+        return self.right - self.left
+
+    @property
+    def height(self):
+        return self.bottom - self.top
+
+    @property
+    def qrect(self):
+        return QRect(self.left, self.top,
+                     self.width, self.height)
+
+    @property
+    def top_left(self):
+        return QPoint(self.left, self.top)
+
+    @property
+    def bottom_right(self):
+        return QPoint(self.right, self.bottom)
+
 
 @dataclass
 class CardFormat:
@@ -99,49 +120,6 @@ class CardFormat:
     rows_spacing: float
 
     threshold: float
-
-    def row_y(self, card_geo: CardGeometry):
-        vertical_scale = (card_geo.bottom - card_geo.top) / \
-            self.reference_width
-        y = card_geo.top + vertical_scale * self.top_margin
-        for _ in range(self.rows):
-            yield y
-            y += vertical_scale * self.rows_spacing
-
-    def column_x(self, card_geo: CardGeometry):
-        horizontal_scale = (card_geo.right - card_geo.left) / \
-            self.reference_width
-        x = card_geo.left + horizontal_scale * self.left_margin
-
-        for _ in range(self.columns):
-            yield x
-            x += horizontal_scale * self.columns_spacing
-
-    def row_lines(self, card_geo: CardGeometry):
-        return ((card_geo.left, y, card_geo.right, y)
-                for y in self.row_y(card_geo))
-
-    def column_lines(self, card_geo: CardGeometry):
-        return ((x, card_geo.top, x, card_geo.bottom)
-                for x in self.column_x(card_geo))
-
-
-def parse_card(image, card_format, card_geo):
-    data = []
-
-    for x in card_format.column_x(card_geo):
-        column = []
-        data.append(column)
-
-        for y in card_format.row_y(card_geo):
-            color = image.pixel(x, y)
-            r, g, b, _ = QColor(color).getRgbF()
-            gray = (r + g + b) / 3
-
-            isHole = gray < card_format.threshold
-            column.append(isHole)
-
-    return data
 
 
 def word_from_data(data):
@@ -194,6 +172,64 @@ test_format = CardFormat(
 
     threshold=0.2
 )
+
+class CardRecognizer:
+    image: QImage
+    image_pixmap: QPixmap
+    geometry: CardGeometry
+    format: CardFormat
+
+    def __init__(self, path):
+        self.image = QImage(path)
+        self.image_pixmap = QPixmap(self.image)
+
+        self.geometry = CardGeometry(0, 0, 0, 0)
+        self.format = deepcopy(test_format)
+
+    @property
+    def row_y(self):
+        vertical_scale = self.geometry.height / self.format.reference_width
+
+        y = self.geometry.top + vertical_scale * self.format.top_margin
+        for _ in range(self.format.rows):
+            yield y
+            y += vertical_scale * self.format.rows_spacing
+
+    @property
+    def column_x(self):
+        horizontal_scale = self.geometry.width / self.format.reference_width
+        x = self.geometry.left + horizontal_scale * self.format.left_margin
+
+        for _ in range(self.format.columns):
+            yield x
+            x += horizontal_scale * self.format.columns_spacing
+
+    @property
+    def row_lines(self):
+        return (QLineF(self.geometry.left, y, self.geometry.right, y)
+                for y in self.row_y)
+
+    @property
+    def column_lines(self):
+        return (QLineF(x, self.geometry.top, x, self.geometry.bottom)
+                for x in self.column_x)
+
+    def parse_card(self):
+        data = []
+
+        for x in self.column_x:
+            column = []
+            data.append(column)
+
+            for y in self.row_y:
+                color = self.image.pixel(x, y)
+                r, g, b, _ = QColor(color).getRgbF()
+                gray = (r + g + b) / 3
+
+                isHole = gray < self.format.threshold
+                column.append(isHole)
+
+        return data
 
 
 class MainWindow(QMainWindow):
@@ -304,81 +340,68 @@ class MainWindow(QMainWindow):
         self.load_image("examples/foto.png")
 
     def load_image(self, path: str):
-        self.image = QImage(path)
-        self.image_pixmap = QPixmap(self.image)
-        self.image_item.setPixmap(self.image_pixmap)
-        self.card_geo = CardGeometry(0, 0, 0, 0)
-        self.card_format = deepcopy(test_format)
-
+        self.card_recognizer = CardRecognizer("examples/foto.png")
+        self.image_item.setPixmap(self.card_recognizer.image_pixmap)
         self.set_ui_values()
 
     def set_ui_values(self):
-        self.top_left_handle.setPos(self.card_geo.left, self.card_geo.top)
-        self.bottom_right_handle.setPos(self.card_geo.right, self.card_geo.bottom)
+        self.top_left_handle.setPos(self.card_recognizer.geometry.top_left)
+        self.bottom_right_handle.setPos(self.card_recognizer.geometry.bottom_right)
 
         self.updating = True
-        self.columns_edit.setValue(self.card_format.columns)
-        self.rows_edit.setValue(self.card_format.rows)
-        self.reference_width_edit.setValue(self.card_format.reference_width)
-        self.top_margin_edit.setValue(self.card_format.top_margin)
-        self.left_margin_edit.setValue(self.card_format.left_margin)
-        self.rows_spacing_edit.setValue(self.card_format.rows_spacing)
-        self.columns_spacing_edit.setValue(self.card_format.columns_spacing)
-        self.threshold_edit.setValue(self.card_format.threshold)
+        self.columns_edit.setValue(self.card_recognizer.format.columns)
+        self.rows_edit.setValue(self.card_recognizer.format.rows)
+        self.reference_width_edit.setValue(self.card_recognizer.format.reference_width)
+        self.top_margin_edit.setValue(self.card_recognizer.format.top_margin)
+        self.left_margin_edit.setValue(self.card_recognizer.format.left_margin)
+        self.rows_spacing_edit.setValue(self.card_recognizer.format.rows_spacing)
+        self.columns_spacing_edit.setValue(self.card_recognizer.format.columns_spacing)
+        self.threshold_edit.setValue(self.card_recognizer.format.threshold)
         self.updating = False
 
     def ui_changed(self):
         if self.updating: return
 
-        self.card_geo.left   = self.top_left_handle.pos().x()
-        self.card_geo.top    = self.top_left_handle.pos().y()
-        self.card_geo.right  = self.bottom_right_handle.pos().x()
-        self.card_geo.bottom = self.bottom_right_handle.pos().y()
+        self.card_recognizer.geometry.left   = self.top_left_handle.pos().x()
+        self.card_recognizer.geometry.top    = self.top_left_handle.pos().y()
+        self.card_recognizer.geometry.right  = self.bottom_right_handle.pos().x()
+        self.card_recognizer.geometry.bottom = self.bottom_right_handle.pos().y()
 
-        self.card_format.columns         = self.columns_edit.value()
-        self.card_format.rows            = self.rows_edit.value()
-        self.card_format.reference_width = self.reference_width_edit.value()
-        self.card_format.top_margin      = self.top_margin_edit.value()
-        self.card_format.left_margin     = self.left_margin_edit.value()
-        self.card_format.rows_spacing    = self.rows_spacing_edit.value()
-        self.card_format.columns_spacing = self.columns_spacing_edit.value()
-        self.card_format.threshold       = self.threshold_edit.value()
+        self.card_recognizer.format.columns         = self.columns_edit.value()
+        self.card_recognizer.format.rows            = self.rows_edit.value()
+        self.card_recognizer.format.reference_width = self.reference_width_edit.value()
+        self.card_recognizer.format.top_margin      = self.top_margin_edit.value()
+        self.card_recognizer.format.left_margin     = self.left_margin_edit.value()
+        self.card_recognizer.format.rows_spacing    = self.rows_spacing_edit.value()
+        self.card_recognizer.format.columns_spacing = self.columns_spacing_edit.value()
+        self.card_recognizer.format.threshold       = self.threshold_edit.value()
 
         self.update()
 
     def update(self):
-        rect = QRect(self.card_geo.left, self.card_geo.top,
-                     self.card_geo.right - self.card_geo.left,
-                     self.card_geo.bottom - self.card_geo.top)
-
-        self.rect.setRect(rect)
+        self.rect.setRect(self.card_recognizer.geometry.qrect)
 
         for line in self.items_to_delete:
             self.scene.removeItem(line)
 
         self.items_to_delete = []
 
-        row_lines = self.card_format.row_lines(self.card_geo)
-
-        for x1, y1, x2, y2 in row_lines:
-            line_item = QGraphicsLineItem(x1, y1, x2, y2)
+        for line in self.card_recognizer.row_lines:
+            line_item = self.scene.addLine(line)
             line_item.setPen(QColor(255, 0, 255))
-            self.scene.addItem(line_item)
             self.items_to_delete.append(line_item)
 
-        column_lines = self.card_format.column_lines(self.card_geo)
-        for x1, y1, x2, y2 in column_lines:
-            line_item = QGraphicsLineItem(x1, y1, x2, y2)
+        for line in self.card_recognizer.column_lines:
+            line_item = self.scene.addLine(line)
             line_item.setPen(QColor(0, 255, 255))
-            self.scene.addItem(line_item)
             self.items_to_delete.append(line_item)
 
-        data = parse_card(self.image, self.card_format, self.card_geo)
+        data = self.card_recognizer.parse_card()
         word = word_from_data(data)
-        txt  = ascii_card_from_data(data, self.card_format, word)
+        txt  = ascii_card_from_data(data, self.card_recognizer.format, word)
 
-        for (x, column) in zip(self.card_format.column_x(self.card_geo), data):
-            for (y, one) in zip(self.card_format.row_y(self.card_geo), column):
+        for (x, column) in zip(self.card_recognizer.column_x, data):
+            for (y, one) in zip(self.card_recognizer.row_y, column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
                 if one:
                     dot.setPen(QColor(255, 255, 255))
