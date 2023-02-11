@@ -56,20 +56,20 @@ class ZoomableGraphicsView(QGraphicsView):
         self.setTransformationAnchor(oldAnchor)
 
 
-class Dot(QGraphicsItemGroup):
+class Handle(QGraphicsItemGroup):
     def __init__(self, parent):
         super().__init__(parent)
 
-        self.suca = QGraphicsEllipseItem()
+        self.circle = QGraphicsEllipseItem()
 
-        self.suca.setRect(QRect(-10, -10, 20, 20))
-        self.suca.setBrush(QColor.fromRgb(0, 30, 200))
-        self.suca.setPen(QColor.fromRgb(0, 30, 190))
+        self.circle.setRect(QRect(-10, -10, 20, 20))
+        self.circle.setBrush(QColor.fromRgb(0, 30, 200))
+        self.circle.setPen(QColor.fromRgb(0, 30, 190))
 
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
 
-        self.addToGroup(self.suca)
+        self.addToGroup(self.circle)
 
         self.changed = lambda pos: None
 
@@ -299,13 +299,13 @@ class MainWindow(QMainWindow):
         self.sample_pixmap = QPixmap(self.sample)
         self.sample_item = self.scene.addPixmap(self.sample_pixmap)
 
-        self.suca = Dot(None)
-        self.suca.changed = self.ui_changed
-        self.scene.addItem(self.suca)
+        self.top_left_handle = Handle(None)
+        self.top_left_handle.changed = self.ui_changed
+        self.scene.addItem(self.top_left_handle)
 
-        self.suca1 = Dot(None)
-        self.suca1.changed = self.ui_changed
-        self.scene.addItem(self.suca1)
+        self.bottom_right_handle = Handle(None)
+        self.bottom_right_handle.changed = self.ui_changed
+        self.scene.addItem(self.bottom_right_handle)
 
         self.card_item = CardGeometry(0, 0, 0, 0)
 
@@ -316,10 +316,10 @@ class MainWindow(QMainWindow):
         self.items_to_delete = []
 
     def ui_changed(self):
-        self.card_item.left   = self.suca.pos().x()
-        self.card_item.top    = self.suca.pos().y()
-        self.card_item.right  = self.suca1.pos().x()
-        self.card_item.bottom = self.suca1.pos().y()
+        self.card_item.left   = self.top_left_handle.pos().x()
+        self.card_item.top    = self.top_left_handle.pos().y()
+        self.card_item.right  = self.bottom_right_handle.pos().x()
+        self.card_item.bottom = self.bottom_right_handle.pos().y()
 
         self.card_format.columns         = self.columns_edit.value()
         self.card_format.rows            = self.rows_edit.value()
