@@ -176,12 +176,14 @@ test_format = CardFormat(
 )
 
 class CardRecognizer:
+    path: str
     image: QImage
     image_pixmap: QPixmap
     geometry: CardGeometry
     format: CardFormat
 
     def __init__(self, path):
+        self.path = path
         self.image = QImage(path)
         self.image_pixmap = QPixmap(self.image)
 
@@ -252,13 +254,6 @@ class MainWindow(QMainWindow):
 
         bar = self.addToolBar("Toolbar")
         bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-
-        # self.save_action = bar.addAction(
-        #     qApp.style().standardIcon(QStyle.SP_DialogSaveButton),
-        #     "Save",
-        #     self.on_save
-        # )
-        # self.save_action.setShortcut(QKeySequence.Save)
 
         self.open_action = bar.addAction(
             self.style().standardIcon(QStyle.SP_DialogOpenButton),
@@ -343,7 +338,11 @@ class MainWindow(QMainWindow):
 
         panel_group.setLayout(panel_layout)
 
+        self.cards_list = QListWidget()
+        self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
+
         hor_split = QSplitter(Qt.Horizontal)
+        hor_split.addWidget(self.cards_list)
         hor_split.addWidget(self.scene_widget)
         hor_split.addWidget(panel_group)
 
@@ -370,14 +369,22 @@ class MainWindow(QMainWindow):
 
         self.items_to_delete = []
 
-        self.load_image("examples/foto.png")
+        self.recognizers = []
+        self.selected_recognizer = None
 
-    def load_image(self, path: str):
+        #self.load_image("examples/foto.png")
+
+    def load_images(self, paths: [str]):
         try:
-            self.card_recognizer = CardRecognizer(path)
-            self.image_item.setPixmap(self.card_recognizer.image_pixmap)
-            self.set_ui_values()
-            self.update()
+            for path in paths:
+                card_recognizer = CardRecognizer(path)
+                self.recognizers.append(card_recognizer)
+
+            self.cards_list.clear()
+            self.cards_list.addItems((i.path for i in self.recognizers))
+
+            self.select_recognizer(0)
+
         except Exception as e:
             box = QMessageBox()
             box.setWindowTitle = "Error loading file"
@@ -385,6 +392,13 @@ class MainWindow(QMainWindow):
             box.setIcon(QMessageBox.Critical)
             box.setStandardButtons(QMessageBox.Ok)
             box.exec()
+
+    def select_recognizer(self, idx):
+        self.card_recognizer = self.recognizers[idx]
+        self.selected_recognizer = idx
+        self.image_item.setPixmap(self.card_recognizer.image_pixmap)
+        self.set_ui_values()
+        self.update()
 
     def set_ui_values(self):
         self.updating = True
@@ -457,27 +471,22 @@ class MainWindow(QMainWindow):
         self.text_label.setText(word)
         self.text_edit.setText(txt)
 
-    def dialog(self, title):
-        mime_type_filters = ["image/png", "image/jpeg"]
-        dialog = QFileDialog(self, title)
-        dialog.setFileMode(QFileDialog.AnyFile)
-        return dialog
-
-    def on_save(self):
-        dialog = self.dialog("Save File")
-        dialog.setAcceptMode(QFileDialog.AcceptSave)
-        if dialog.exec() == QFileDialog.Accepted:
-            if dialog.selectedFiles():
-                name = dialog.selectedFiles()[0]
-                print(f"save {name}")
-
     def on_open(self):
-        dialog = self.dialog("Load File")
+        dialog = QFileDialog(self, "Load Files")
+        dialog.setFileMode(QFileDialog.ExistingFiles)
         dialog.setAcceptMode(QFileDialog.AcceptOpen)
+
         if dialog.exec() == QFileDialog.Accepted:
             if dialog.selectedFiles():
-                name = dialog.selectedFiles()[0]
-                self.load_image(name)
+                self.load_images(dialog.selectedFiles())
+
+    def on_card_selection(self):
+        selected_items = self.cards_list.selectedItems()
+        if selected_items:
+            item_index = self.cards_list.row(selected_items[0])
+            self.select_recognizer(item_index)
+        else:
+            self.selected_recognizer = None
 
 
 if __name__ == "__main__":
