@@ -291,49 +291,49 @@ class MainWindow(QMainWindow):
 
         self.columns_edit = QSpinBox()
         self.columns_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_edit.valueChanged.connect(self.ui_changed)
+        self.columns_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Columns", self.columns_edit)
 
         self.rows_edit = QSpinBox()
         self.rows_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_edit.valueChanged.connect(self.ui_changed)
+        self.rows_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Rows", self.rows_edit)
 
         self.reference_width_edit = QDoubleSpinBox()
         self.reference_width_edit.setSingleStep(0.01)
         self.reference_width_edit.setMinimumWidth(minimum_spin_size)
-        self.reference_width_edit.valueChanged.connect(self.ui_changed)
+        self.reference_width_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Reference width", self.reference_width_edit)
 
         self.top_margin_edit = QDoubleSpinBox()
         self.top_margin_edit.setSingleStep(0.01)
         self.top_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.top_margin_edit.valueChanged.connect(self.ui_changed)
+        self.top_margin_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Top Margin", self.top_margin_edit)
 
         self.left_margin_edit = QDoubleSpinBox()
         self.left_margin_edit.setSingleStep(0.01)
         self.left_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.left_margin_edit.valueChanged.connect(self.ui_changed)
+        self.left_margin_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Left Margin", self.left_margin_edit)
 
         self.rows_spacing_edit = QDoubleSpinBox()
         self.rows_spacing_edit.setSingleStep(0.01)
         self.rows_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_spacing_edit.valueChanged.connect(self.ui_changed)
+        self.rows_spacing_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Rows Spacing", self.rows_spacing_edit)
 
         self.columns_spacing_edit = QDoubleSpinBox()
         self.columns_spacing_edit.setSingleStep(0.01)
         self.columns_spacing_edit.setDecimals(3)
         self.columns_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_spacing_edit.valueChanged.connect(self.ui_changed)
+        self.columns_spacing_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
 
         self.threshold_edit = QDoubleSpinBox()
         self.threshold_edit.setSingleStep(0.01)
         self.threshold_edit.setMinimumWidth(minimum_spin_size)
-        self.threshold_edit.valueChanged.connect(self.ui_changed)
+        self.threshold_edit.valueChanged.connect(self.on_ui_change)
         panel_layout.addRow("Threshold", self.threshold_edit)
 
         panel_group.setLayout(panel_layout)
@@ -356,11 +356,11 @@ class MainWindow(QMainWindow):
         self.scene.addItem(self.image_item)
 
         self.top_left_handle = Handle(None)
-        self.top_left_handle.changed = self.ui_changed
+        self.top_left_handle.changed = self.on_ui_change
         self.scene.addItem(self.top_left_handle)
 
         self.bottom_right_handle = Handle(None)
-        self.bottom_right_handle.changed = self.ui_changed
+        self.bottom_right_handle.changed = self.on_ui_change
         self.scene.addItem(self.bottom_right_handle)
 
         self.rect = QGraphicsRectItem()
@@ -414,11 +414,7 @@ class MainWindow(QMainWindow):
         self.threshold_edit.setValue(recognizer.format.threshold)
         self.updating = False
 
-    def ui_changed(self):
-        idx = self.selected_recognizer
-        if idx is None: return
-        recognizer = self.recognizers[idx]
-        
+    def ui_changed(self, recognizer):
         if self.updating: return
 
         recognizer.geometry.left   = self.top_left_handle.pos().x()
@@ -474,6 +470,12 @@ class MainWindow(QMainWindow):
 
         self.text_label.setText(word)
         self.text_edit.setText(txt)
+
+    def on_ui_change(self):
+        idx = self.selected_recognizer
+        if idx is None: return
+        recognizer = self.recognizers[idx]
+        self.ui_changed(recognizer)
 
     def on_open(self):
         dialog = QFileDialog(self, "Load Files")
