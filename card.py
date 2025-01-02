@@ -394,69 +394,73 @@ class MainWindow(QMainWindow):
             box.exec()
 
     def select_recognizer(self, idx):
-        self.card_recognizer = self.recognizers[idx]
+        recognizer = self.recognizers[idx]
         self.selected_recognizer = idx
-        self.image_item.setPixmap(self.card_recognizer.image_pixmap)
-        self.set_ui_values()
-        self.update()
+        self.image_item.setPixmap(recognizer.image_pixmap)
+        self.set_ui_values(recognizer)
+        self.update(recognizer)
 
-    def set_ui_values(self):
+    def set_ui_values(self, recognizer):
         self.updating = True
-        self.top_left_handle.setPos(self.card_recognizer.geometry.top_left)
-        self.bottom_right_handle.setPos(self.card_recognizer.geometry.bottom_right)
-        self.columns_edit.setValue(self.card_recognizer.format.columns)
-        self.rows_edit.setValue(self.card_recognizer.format.rows)
-        self.reference_width_edit.setValue(self.card_recognizer.format.reference_width)
-        self.top_margin_edit.setValue(self.card_recognizer.format.top_margin)
-        self.left_margin_edit.setValue(self.card_recognizer.format.left_margin)
-        self.rows_spacing_edit.setValue(self.card_recognizer.format.rows_spacing)
-        self.columns_spacing_edit.setValue(self.card_recognizer.format.columns_spacing)
-        self.threshold_edit.setValue(self.card_recognizer.format.threshold)
+        self.top_left_handle.setPos(recognizer.geometry.top_left)
+        self.bottom_right_handle.setPos(recognizer.geometry.bottom_right)
+        self.columns_edit.setValue(recognizer.format.columns)
+        self.rows_edit.setValue(recognizer.format.rows)
+        self.reference_width_edit.setValue(recognizer.format.reference_width)
+        self.top_margin_edit.setValue(recognizer.format.top_margin)
+        self.left_margin_edit.setValue(recognizer.format.left_margin)
+        self.rows_spacing_edit.setValue(recognizer.format.rows_spacing)
+        self.columns_spacing_edit.setValue(recognizer.format.columns_spacing)
+        self.threshold_edit.setValue(recognizer.format.threshold)
         self.updating = False
 
     def ui_changed(self):
+        idx = self.selected_recognizer
+        if idx is None: return
+        recognizer = self.recognizers[idx]
+        
         if self.updating: return
 
-        self.card_recognizer.geometry.left   = self.top_left_handle.pos().x()
-        self.card_recognizer.geometry.top    = self.top_left_handle.pos().y()
-        self.card_recognizer.geometry.right  = self.bottom_right_handle.pos().x()
-        self.card_recognizer.geometry.bottom = self.bottom_right_handle.pos().y()
+        recognizer.geometry.left   = self.top_left_handle.pos().x()
+        recognizer.geometry.top    = self.top_left_handle.pos().y()
+        recognizer.geometry.right  = self.bottom_right_handle.pos().x()
+        recognizer.geometry.bottom = self.bottom_right_handle.pos().y()
 
-        self.card_recognizer.format.columns         = self.columns_edit.value()
-        self.card_recognizer.format.rows            = self.rows_edit.value()
-        self.card_recognizer.format.reference_width = self.reference_width_edit.value()
-        self.card_recognizer.format.top_margin      = self.top_margin_edit.value()
-        self.card_recognizer.format.left_margin     = self.left_margin_edit.value()
-        self.card_recognizer.format.rows_spacing    = self.rows_spacing_edit.value()
-        self.card_recognizer.format.columns_spacing = self.columns_spacing_edit.value()
-        self.card_recognizer.format.threshold       = self.threshold_edit.value()
+        recognizer.format.columns         = self.columns_edit.value()
+        recognizer.format.rows            = self.rows_edit.value()
+        recognizer.format.reference_width = self.reference_width_edit.value()
+        recognizer.format.top_margin      = self.top_margin_edit.value()
+        recognizer.format.left_margin     = self.left_margin_edit.value()
+        recognizer.format.rows_spacing    = self.rows_spacing_edit.value()
+        recognizer.format.columns_spacing = self.columns_spacing_edit.value()
+        recognizer.format.threshold       = self.threshold_edit.value()
 
-        self.update()
+        self.update(recognizer)
 
-    def update(self):
-        self.rect.setRect(self.card_recognizer.geometry.qrect)
+    def update(self, recognizer):
+        self.rect.setRect(recognizer.geometry.qrect)
 
         for line in self.items_to_delete:
             self.scene.removeItem(line)
 
         self.items_to_delete = []
 
-        for line in self.card_recognizer.row_lines:
+        for line in recognizer.row_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(255, 0, 255))
             self.items_to_delete.append(line_item)
 
-        for line in self.card_recognizer.column_lines:
+        for line in recognizer.column_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(0, 255, 255))
             self.items_to_delete.append(line_item)
 
-        data = self.card_recognizer.parse_card()
+        data = recognizer.parse_card()
         word = word_from_data(data)
-        txt  = ascii_card_from_data(data, self.card_recognizer.format, word)
+        txt  = ascii_card_from_data(data, recognizer.format, word)
 
-        for (x, column) in zip(self.card_recognizer.column_x, data):
-            for (y, one) in zip(self.card_recognizer.row_y, column):
+        for (x, column) in zip(recognizer.column_x, data):
+            for (y, one) in zip(recognizer.row_y, column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
                 if one:
                     dot.setPen(QColor(255, 255, 255))
