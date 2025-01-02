@@ -221,18 +221,27 @@ class CardRecognizer:
 
     def parse_card(self):
         data = []
+        image_size = self.image.size()
 
         for x in self.column_x:
             column = []
             data.append(column)
 
             for y in self.row_y:
-                color = self.image.pixel(x, y)
-                r, g, b, _ = QColor(color).getRgbF()
-                gray = (r + g + b) / 3
+                if (x < image_size.width() and
+                    y < image_size.height() and
+                    x >= 0 and
+                    y >= 0):
 
-                isHole = gray < self.format.threshold
-                column.append(isHole)
+                    color = self.image.pixel(x, y)
+                    r, g, b, _ = QColor(color).getRgbF()
+                    gray = (r + g + b) / 3
+
+                    isHole = gray < self.format.threshold
+                    column.append(isHole)
+
+                else:
+                    column.append(False)
 
         return data
 
