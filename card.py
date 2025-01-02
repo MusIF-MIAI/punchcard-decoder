@@ -124,6 +124,44 @@ class CardFormat:
     threshold: float
 
 
+@dataclass
+class CardConfig:
+    geometry: CardGeometry
+    format: CardFormat
+
+    def __init__(self):
+        self.geometry = CardGeometry(0, 0, 0, 0)
+        self.format = deepcopy(test_format)
+
+    @property
+    def row_y(self):
+        vertical_scale = self.geometry.height / self.format.reference_width
+
+        y = self.geometry.top + vertical_scale * self.format.top_margin
+        for _ in range(self.format.rows):
+            yield y
+            y += vertical_scale * self.format.rows_spacing
+
+    @property
+    def column_x(self):
+        horizontal_scale = self.geometry.width / self.format.reference_width
+        x = self.geometry.left + horizontal_scale * self.format.left_margin
+
+        for _ in range(self.format.columns):
+            yield x
+            x += horizontal_scale * self.format.columns_spacing
+
+    @property
+    def row_lines(self):
+        return (QLineF(self.geometry.left, y, self.geometry.right, y)
+                for y in self.row_y)
+
+    @property
+    def column_lines(self):
+        return (QLineF(x, self.geometry.top, x, self.geometry.bottom)
+                for x in self.column_x)
+
+
 def word_from_data(data):
     word = ''
 
@@ -179,8 +217,6 @@ class CardRecognizer:
     path: str
     image: QImage
     image_pixmap: QPixmap
-    geometry: CardGeometry
-    format: CardFormat
 
     def __init__(self, path):
         self.path = path
@@ -190,46 +226,16 @@ class CardRecognizer:
         if self.image_pixmap.isNull():
             raise Exception(f"cannot open image file at path: {path}")
 
-        self.geometry = CardGeometry(0, 0, 0, 0)
-        self.format = deepcopy(test_format)
 
-    @property
-    def row_y(self):
-        vertical_scale = self.geometry.height / self.format.reference_width
-
-        y = self.geometry.top + vertical_scale * self.format.top_margin
-        for _ in range(self.format.rows):
-            yield y
-            y += vertical_scale * self.format.rows_spacing
-
-    @property
-    def column_x(self):
-        horizontal_scale = self.geometry.width / self.format.reference_width
-        x = self.geometry.left + horizontal_scale * self.format.left_margin
-
-        for _ in range(self.format.columns):
-            yield x
-            x += horizontal_scale * self.format.columns_spacing
-
-    @property
-    def row_lines(self):
-        return (QLineF(self.geometry.left, y, self.geometry.right, y)
-                for y in self.row_y)
-
-    @property
-    def column_lines(self):
-        return (QLineF(x, self.geometry.top, x, self.geometry.bottom)
-                for x in self.column_x)
-
-    def parse_card(self):
+    def parse_card(self, config):
         data = []
         image_size = self.image.size()
 
-        for x in self.column_x:
+        for x in config.column_x:
             column = []
             data.append(column)
 
-            for y in self.row_y:
+            for y in config.row_y:
                 if (x < image_size.width() and
                     y < image_size.height() and
                     x >= 0 and
@@ -239,7 +245,7 @@ class CardRecognizer:
                     r, g, b, _ = QColor(color).getRgbF()
                     gray = (r + g + b) / 3
 
-                    isHole = gray < self.format.threshold
+                    isHole = gray < config.format.threshold
                     column.append(isHole)
 
                 else:
@@ -372,6 +378,8 @@ class MainWindow(QMainWindow):
         self.recognizers = []
         self.selected_recognizer = None
 
+        self.config = CardConfig()
+
         #self.load_image("examples/foto.png")
 
     def load_images(self, paths: [str]):
@@ -401,62 +409,66 @@ class MainWindow(QMainWindow):
         self.update(recognizer)
 
     def set_ui_values(self, recognizer):
+        config = self.config
+
         self.updating = True
-        self.top_left_handle.setPos(recognizer.geometry.top_left)
-        self.bottom_right_handle.setPos(recognizer.geometry.bottom_right)
-        self.columns_edit.setValue(recognizer.format.columns)
-        self.rows_edit.setValue(recognizer.format.rows)
-        self.reference_width_edit.setValue(recognizer.format.reference_width)
-        self.top_margin_edit.setValue(recognizer.format.top_margin)
-        self.left_margin_edit.setValue(recognizer.format.left_margin)
-        self.rows_spacing_edit.setValue(recognizer.format.rows_spacing)
-        self.columns_spacing_edit.setValue(recognizer.format.columns_spacing)
-        self.threshold_edit.setValue(recognizer.format.threshold)
+        self.top_left_handle.setPos(config.geometry.top_left)
+        self.bottom_right_handle.setPos(config.geometry.bottom_right)
+        self.columns_edit.setValue(config.format.columns)
+        self.rows_edit.setValue(config.format.rows)
+        self.reference_width_edit.setValue(config.format.reference_width)
+        self.top_margin_edit.setValue(config.format.top_margin)
+        self.left_margin_edit.setValue(config.format.left_margin)
+        self.rows_spacing_edit.setValue(config.format.rows_spacing)
+        self.columns_spacing_edit.setValue(config.format.columns_spacing)
+        self.threshold_edit.setValue(config.format.threshold)
         self.updating = False
 
     def ui_changed(self, recognizer):
         if self.updating: return
+        config = self.config
 
-        recognizer.geometry.left   = self.top_left_handle.pos().x()
-        recognizer.geometry.top    = self.top_left_handle.pos().y()
-        recognizer.geometry.right  = self.bottom_right_handle.pos().x()
-        recognizer.geometry.bottom = self.bottom_right_handle.pos().y()
+        config.geometry.left   = self.top_left_handle.pos().x()
+        config.geometry.top    = self.top_left_handle.pos().y()
+        config.geometry.right  = self.bottom_right_handle.pos().x()
+        config.geometry.bottom = self.bottom_right_handle.pos().y()
 
-        recognizer.format.columns         = self.columns_edit.value()
-        recognizer.format.rows            = self.rows_edit.value()
-        recognizer.format.reference_width = self.reference_width_edit.value()
-        recognizer.format.top_margin      = self.top_margin_edit.value()
-        recognizer.format.left_margin     = self.left_margin_edit.value()
-        recognizer.format.rows_spacing    = self.rows_spacing_edit.value()
-        recognizer.format.columns_spacing = self.columns_spacing_edit.value()
-        recognizer.format.threshold       = self.threshold_edit.value()
+        config.format.columns         = self.columns_edit.value()
+        config.format.rows            = self.rows_edit.value()
+        config.format.reference_width = self.reference_width_edit.value()
+        config.format.top_margin      = self.top_margin_edit.value()
+        config.format.left_margin     = self.left_margin_edit.value()
+        config.format.rows_spacing    = self.rows_spacing_edit.value()
+        config.format.columns_spacing = self.columns_spacing_edit.value()
+        config.format.threshold       = self.threshold_edit.value()
 
         self.update(recognizer)
 
     def update(self, recognizer):
-        self.rect.setRect(recognizer.geometry.qrect)
+        config = self.config
+        self.rect.setRect(config.geometry.qrect)
 
         for line in self.items_to_delete:
             self.scene.removeItem(line)
 
         self.items_to_delete = []
 
-        for line in recognizer.row_lines:
+        for line in config.row_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(255, 0, 255))
             self.items_to_delete.append(line_item)
 
-        for line in recognizer.column_lines:
+        for line in config.column_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(0, 255, 255))
             self.items_to_delete.append(line_item)
 
-        data = recognizer.parse_card()
+        data = recognizer.parse_card(config)
         word = word_from_data(data)
-        txt  = ascii_card_from_data(data, recognizer.format, word)
+        txt  = ascii_card_from_data(data, config.format, word)
 
-        for (x, column) in zip(recognizer.column_x, data):
-            for (y, one) in zip(recognizer.row_y, column):
+        for (x, column) in zip(config.column_x, data):
+            for (y, one) in zip(config.row_y, column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
                 if one:
                     dot.setPen(QColor(255, 255, 255))
