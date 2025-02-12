@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 
 import sys
+import json
 
 IBM_MODEL_029_KEYPUNCH = """
     /&-0123456789ABCDEFGHIJKLMNOPQR/STUVWXYZ:#@'="`.<(+|!$*);^~,%_>? |
@@ -32,7 +33,7 @@ def master_card_to_map(master_card_string):
     #   (O, , ,O, , , , , , , , ):A
     #   (O, , , ,O, , , , , , , ):B
     #   (O, , , , ,O, , , , , , ):C
-    rows = master_card_string[1:].split('\n')
+    rows = master_card_string[1:].split("\n")
     rotated = [[r[i] for r in rows[0:13]] for i in range(5, len(rows[0]) - 1)]
     translate = {}
     for v in rotated:
@@ -99,8 +100,7 @@ class CardGeometry:
 
     @property
     def qrect(self):
-        return QRect(self.left, self.top,
-                     self.width, self.height)
+        return QRect(self.left, self.top, self.width, self.height)
 
     @property
     def top_left(self):
@@ -121,18 +121,28 @@ class CardFormat:
     left_margin: float
     columns_spacing: float
     rows_spacing: float
-
     threshold: float
 
 
 @dataclass
-class CardConfig:
+class Card:
     geometry: CardGeometry
     format: CardFormat
+    path: str
 
-    def __init__(self):
-        self.geometry = CardGeometry(0, 0, 0, 0)
-        self.format = deepcopy(test_format)
+    @property
+    def image_data(self):
+        if hasattr(self, "_image_data"):
+            return self._image_data
+
+        img = QImage(self.path)
+        pxm = QPixmap(img)
+
+        if pxm.isNull():
+            raise Exception(f"cannot open image file at path: {self.path}")
+
+        self._image_data = (img, pxm)
+        return self._image_data
 
     @property
     def row_y(self):
@@ -154,61 +164,177 @@ class CardConfig:
 
     @property
     def row_lines(self):
-        return (QLineF(self.geometry.left, y, self.geometry.right, y)
-                for y in self.row_y)
+        return (
+            QLineF(self.geometry.left, y, self.geometry.right, y) for y in self.row_y
+        )
 
     @property
     def column_lines(self):
-        return (QLineF(x, self.geometry.top, x, self.geometry.bottom)
-                for x in self.column_x)
+        return (
+            QLineF(x, self.geometry.top, x, self.geometry.bottom) for x in self.column_x
+        )
+
+    @property
+    def image(self):
+        return self.image_data[0]
+
+    @property
+    def image_pixmap(self):
+        return self.image_data[1]
+
+    def parse_card(self):
+        data = []
+        image_size = self.image.size()
+
+        for x in self.column_x:
+            column = []
+            data.append(column)
+
+            for y in self.row_y:
+                if (
+                    x < image_size.width()
+                    and y < image_size.height()
+                    and x >= 0
+                    and y >= 0
+                ):
+
+                    color = self.image.pixel(x, y)
+                    r, g, b, _ = QColor(color).getRgbF()
+                    gray = (r + g + b) / 3
+
+                    isHole = gray < self.format.threshold
+                    column.append(isHole)
+
+                else:
+                    column.append(False)
+
+        return data
+
+
+@dataclass
+class Deck:
+    cards: list[Card]
+
+    def to_json(self):
+        return {
+            "cards": [
+                {
+                    "path": card.path,
+                    "geometry": {
+                        "top": card.geometry.top,
+                        "right": card.geometry.right,
+                        "bottom": card.geometry.bottom,
+                        "left": card.geometry.left,
+                    },
+                    "format": {
+                        "columns": card.format.columns,
+                        "rows": card.format.rows,
+                        "reference_width": card.format.reference_width,
+                        "reference_height": card.format.reference_height,
+                        "top_margin": card.format.top_margin,
+                        "left_margin": card.format.left_margin,
+                        "columns_spacing": card.format.columns_spacing,
+                        "rows_spacing": card.format.rows_spacing,
+                        "threshold": card.format.threshold,
+                    },
+                }
+                for card in self.cards
+            ]
+        }
+
+    @staticmethod
+    def from_json(data):
+        cards = []
+        for card_data in data["cards"]:
+            geometry = CardGeometry(
+                top=card_data["geometry"]["top"],
+                right=card_data["geometry"]["right"],
+                bottom=card_data["geometry"]["bottom"],
+                left=card_data["geometry"]["left"],
+            )
+
+            format = CardFormat(
+                columns=card_data["format"]["columns"],
+                rows=card_data["format"]["rows"],
+                reference_width=card_data["format"]["reference_width"],
+                reference_height=card_data["format"]["reference_height"],
+                top_margin=card_data["format"]["top_margin"],
+                left_margin=card_data["format"]["left_margin"],
+                columns_spacing=card_data["format"]["columns_spacing"],
+                rows_spacing=card_data["format"]["rows_spacing"],
+                threshold=card_data["format"]["threshold"],
+            )
+
+            card = Card(geometry=geometry, format=format, path=card_data["path"])
+            cards.append(card)
+
+        return Deck(cards=cards)
+
+    @staticmethod
+    def from_paths(paths):
+        cards = [
+            Card(
+                path=path,
+                geometry=CardGeometry(top=0, right=0, bottom=0, left=0),
+                format=deepcopy(test_format),
+            )
+            for path in paths
+        ]
+        return Deck(cards=cards)
 
 
 def word_from_data(data):
-    word = ''
+    word = ""
 
     for x in data:
         code_key = []
         for y in x:
-            def key_str(x): return 'O' if x else ' '
+
+            def key_str(x):
+                return "O" if x else " "
+
             dot = y
             code_key.append(key_str(dot))
 
         code_key = tuple(code_key)
-        word += translate.get(code_key, '•')
+        word += translate.get(code_key, "•")
 
     return word
 
 
 def ascii_card_from_data(data, card_format, word):
-    h1 = '  ' + '_' * card_format.columns
-    h2 = '/ ' + ' ' * card_format.columns + '|'
-    t  = '| ' + word + ' ' * (card_format.columns - len(word)) + '|'
+    h1 = "  " + "_" * card_format.columns
+    h2 = "/ " + " " * card_format.columns + "|"
+    t = "| " + word + " " * (card_format.columns - len(word)) + "|"
 
     lines = [h1, h2, t]
 
     for y in range(card_format.rows):
-        line = ['| ']
+        line = ["| "]
 
         for x in range(card_format.columns):
-            def bit_str(x): return '0' if x else '.'
+
+            def bit_str(x):
+                return "0" if x else "."
 
             dot = data[x][y]
             line.append(bit_str(dot))
 
-        line.append('|')
+        line.append("|")
         lines.append("".join(line))
 
-    lines.append('`-' + '-' * card_format.columns)
+    lines.append("`-" + "-" * card_format.columns)
     return "\n".join(lines)
 
-#CARD_WIDTH = 7.0 + 3.0/8.0 # Inches
-#CARD_HEIGHT = 3.25 # Inches
-#CARD_COL_WIDTH = 0.087 # Inches
-#CARD_HOLE_WIDTH = 0.055 # Inches IBM, 0.056 Control Data
-#CARD_ROW_HEIGHT = 0.25 # Inches
-#CARD_HOLE_HEIGHT = 0.125 # Inches
-#CARD_TOPBOT_MARGIN = 3.0/16.0 # Inches at top and bottom
-#CARD_SIDE_MARGIN = 0.2235 # Inches on each side
+
+# CARD_WIDTH = 7.0 + 3.0/8.0 # Inches
+# CARD_HEIGHT = 3.25 # Inches
+# CARD_COL_WIDTH = 0.087 # Inches
+# CARD_HOLE_WIDTH = 0.055 # Inches IBM, 0.056 Control Data
+# CARD_ROW_HEIGHT = 0.25 # Inches
+# CARD_HOLE_HEIGHT = 0.125 # Inches
+# CARD_TOPBOT_MARGIN = 3.0/16.0 # Inches at top and bottom
+# CARD_SIDE_MARGIN = 0.2235 # Inches on each side
 
 test_format = CardFormat(
     columns=80,
@@ -219,49 +345,21 @@ test_format = CardFormat(
     left_margin=0.2235,
     rows_spacing=1 / 4,
     columns_spacing=0.087,
-
-    threshold=0.2
+    threshold=0.2,
 )
 
-class CardRecognizer:
-    path: str
-    image: QImage
-    image_pixmap: QPixmap
 
-    def __init__(self, path):
-        self.path = path
-        self.image = QImage(path)
-        self.image_pixmap = QPixmap(self.image)
-
-        if self.image_pixmap.isNull():
-            raise Exception(f"cannot open image file at path: {path}")
-
-
-    def parse_card(self, config):
-        data = []
-        image_size = self.image.size()
-
-        for x in config.column_x:
-            column = []
-            data.append(column)
-
-            for y in config.row_y:
-                if (x < image_size.width() and
-                    y < image_size.height() and
-                    x >= 0 and
-                    y >= 0):
-
-                    color = self.image.pixel(x, y)
-                    r, g, b, _ = QColor(color).getRgbF()
-                    gray = (r + g + b) / 3
-
-                    isHole = gray < config.format.threshold
-                    column.append(isHole)
-
-                else:
-                    column.append(False)
-
-        return data
+def create_spinbox(
+    panel_layout, spinbox_type, value_changed, label, single_step=1, decimals=0
+):
+    spinbox = spinbox_type()
+    spinbox.setSingleStep(single_step)
+    if decimals != 0:
+        spinbox.setDecimals(decimals)
+    spinbox.setMinimumWidth(100)
+    spinbox.valueChanged.connect(value_changed)
+    panel_layout.addRow(label, spinbox)
+    return spinbox
 
 
 class MainWindow(QMainWindow):
@@ -271,10 +369,23 @@ class MainWindow(QMainWindow):
         bar = self.addToolBar("Toolbar")
         bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
 
-        self.open_action = bar.addAction(
+        self.open_deck_action = bar.addAction(
             self.style().standardIcon(QStyle.SP_DialogOpenButton),
-            "Open",
-            self.on_open
+            "Open Deck",
+            self.on_open_deck,
+        )
+
+        self.save_project_action = bar.addAction(
+            self.style().standardIcon(QStyle.SP_DialogSaveButton),
+            "Save Deck",
+            self.on_save_deck,
+        )
+        self.save_project_action.setShortcut(QKeySequence.Save)
+
+        bar.addSeparator()
+
+        self.open_action = bar.addAction(
+            self.style().standardIcon(QStyle.SP_DialogOpenButton), "Open", self.on_open
         )
         self.open_action.setShortcut(QKeySequence.Open)
 
@@ -303,54 +414,55 @@ class MainWindow(QMainWindow):
         panel_group.setFlat(True)
         panel_layout = QFormLayout()
 
-        minimum_spin_size = 100
-
-        self.columns_edit = QSpinBox()
-        self.columns_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Columns", self.columns_edit)
-
-        self.rows_edit = QSpinBox()
-        self.rows_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Rows", self.rows_edit)
-
-        self.reference_width_edit = QDoubleSpinBox()
-        self.reference_width_edit.setSingleStep(0.01)
-        self.reference_width_edit.setMinimumWidth(minimum_spin_size)
-        self.reference_width_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Reference width", self.reference_width_edit)
-
-        self.top_margin_edit = QDoubleSpinBox()
-        self.top_margin_edit.setSingleStep(0.01)
-        self.top_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.top_margin_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Top Margin", self.top_margin_edit)
-
-        self.left_margin_edit = QDoubleSpinBox()
-        self.left_margin_edit.setSingleStep(0.01)
-        self.left_margin_edit.setMinimumWidth(minimum_spin_size)
-        self.left_margin_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Left Margin", self.left_margin_edit)
-
-        self.rows_spacing_edit = QDoubleSpinBox()
-        self.rows_spacing_edit.setSingleStep(0.01)
-        self.rows_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.rows_spacing_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Rows Spacing", self.rows_spacing_edit)
-
-        self.columns_spacing_edit = QDoubleSpinBox()
-        self.columns_spacing_edit.setSingleStep(0.01)
-        self.columns_spacing_edit.setDecimals(3)
-        self.columns_spacing_edit.setMinimumWidth(minimum_spin_size)
-        self.columns_spacing_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Columns Spacing", self.columns_spacing_edit)
-
-        self.threshold_edit = QDoubleSpinBox()
-        self.threshold_edit.setSingleStep(0.01)
-        self.threshold_edit.setMinimumWidth(minimum_spin_size)
-        self.threshold_edit.valueChanged.connect(self.on_ui_change)
-        panel_layout.addRow("Threshold", self.threshold_edit)
+        self.columns_edit = create_spinbox(
+            panel_layout, QSpinBox, self.on_ui_change, "Columns"
+        )
+        self.rows_edit = create_spinbox(
+            panel_layout, QSpinBox, self.on_ui_change, "Rows"
+        )
+        self.reference_width_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Reference width",
+            single_step=0.01,
+        )
+        self.top_margin_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Top Margin",
+            single_step=0.01,
+        )
+        self.left_margin_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Left Margin",
+            single_step=0.01,
+        )
+        self.rows_spacing_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Rows Spacing",
+            single_step=0.01,
+        )
+        self.columns_spacing_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Columns Spacing",
+            single_step=0.01,
+            decimals=3,
+        )
+        self.threshold_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Threshold",
+            single_step=0.01,
+        )
 
         panel_group.setLayout(panel_layout)
 
@@ -385,100 +497,91 @@ class MainWindow(QMainWindow):
 
         self.items_to_delete = []
 
-        self.recognizers = []
-        self.selected_recognizer = None
+        self.selected_card_idx = None
 
-        self.config = CardConfig()
+        self.deck = Deck(cards=[])
 
-        #self.load_image("examples/foto.png")
+    def load_deck(self, deck):
+        self.deck = deck
 
-    def load_images(self, paths: [str]):
-        try:
-            for path in paths:
-                card_recognizer = CardRecognizer(path)
-                self.recognizers.append(card_recognizer)
+        self.cards_list.clear()
+        self.cards_list.addItems((i.path for i in self.deck.cards))
 
-            self.cards_list.clear()
-            self.cards_list.addItems((i.path for i in self.recognizers))
+        self.select_card(0)
 
-            self.select_recognizer(0)
+    def select_card(self, idx):
+        card = self.deck.cards[idx]
+        self.selected_card_idx = idx
+        self.image_item.setPixmap(card.image_pixmap)
+        self.set_ui_values(card)
+        self.redraw_grid_and_text(card)
 
-        except Exception as e:
-            box = QMessageBox()
-            box.setWindowTitle = "Error loading file"
-            box.setText(str(e))
-            box.setIcon(QMessageBox.Critical)
-            box.setStandardButtons(QMessageBox.Ok)
-            box.exec()
+    @property
+    def format(self):
+        return self.deck.cards[self.selected_card_idx].format
 
-    def select_recognizer(self, idx):
-        recognizer = self.recognizers[idx]
-        self.selected_recognizer = idx
-        self.image_item.setPixmap(recognizer.image_pixmap)
-        self.set_ui_values(recognizer)
-        self.update(recognizer)
+    @property
+    def geometry(self):
+        return self.deck.cards[self.selected_card_idx].geometry
 
-    def set_ui_values(self, recognizer):
-        config = self.config
-
+    def set_ui_values(self, card):
         self.updating = True
-        self.top_left_handle.setPos(config.geometry.top_left)
-        self.bottom_right_handle.setPos(config.geometry.bottom_right)
-        self.columns_edit.setValue(config.format.columns)
-        self.rows_edit.setValue(config.format.rows)
-        self.reference_width_edit.setValue(config.format.reference_width)
-        self.top_margin_edit.setValue(config.format.top_margin)
-        self.left_margin_edit.setValue(config.format.left_margin)
-        self.rows_spacing_edit.setValue(config.format.rows_spacing)
-        self.columns_spacing_edit.setValue(config.format.columns_spacing)
-        self.threshold_edit.setValue(config.format.threshold)
+        self.top_left_handle.setPos(self.geometry.top_left)
+        self.bottom_right_handle.setPos(self.geometry.bottom_right)
+        self.columns_edit.setValue(self.format.columns)
+        self.rows_edit.setValue(self.format.rows)
+        self.reference_width_edit.setValue(self.format.reference_width)
+        self.top_margin_edit.setValue(self.format.top_margin)
+        self.left_margin_edit.setValue(self.format.left_margin)
+        self.rows_spacing_edit.setValue(self.format.rows_spacing)
+        self.columns_spacing_edit.setValue(self.format.columns_spacing)
+        self.threshold_edit.setValue(self.format.threshold)
         self.updating = False
 
-    def ui_changed(self, recognizer):
-        if self.updating: return
-        config = self.config
+    def ui_changed(self, card):
+        if self.updating:
+            return
 
-        config.geometry.left   = self.top_left_handle.pos().x()
-        config.geometry.top    = self.top_left_handle.pos().y()
-        config.geometry.right  = self.bottom_right_handle.pos().x()
-        config.geometry.bottom = self.bottom_right_handle.pos().y()
+        self.geometry.left = self.top_left_handle.pos().x()
+        self.geometry.top = self.top_left_handle.pos().y()
+        self.geometry.right = self.bottom_right_handle.pos().x()
+        self.geometry.bottom = self.bottom_right_handle.pos().y()
 
-        config.format.columns         = self.columns_edit.value()
-        config.format.rows            = self.rows_edit.value()
-        config.format.reference_width = self.reference_width_edit.value()
-        config.format.top_margin      = self.top_margin_edit.value()
-        config.format.left_margin     = self.left_margin_edit.value()
-        config.format.rows_spacing    = self.rows_spacing_edit.value()
-        config.format.columns_spacing = self.columns_spacing_edit.value()
-        config.format.threshold       = self.threshold_edit.value()
+        self.format.columns = self.columns_edit.value()
+        self.format.rows = self.rows_edit.value()
+        self.format.reference_width = self.reference_width_edit.value()
+        self.format.top_margin = self.top_margin_edit.value()
+        self.format.left_margin = self.left_margin_edit.value()
+        self.format.rows_spacing = self.rows_spacing_edit.value()
+        self.format.columns_spacing = self.columns_spacing_edit.value()
+        self.format.threshold = self.threshold_edit.value()
 
-        self.update(recognizer)
+        self.redraw_grid_and_text(card)
 
-    def update(self, recognizer):
-        config = self.config
-        self.rect.setRect(config.geometry.qrect)
+    def redraw_grid_and_text(self, card):
+        self.rect.setRect(self.geometry.qrect)
 
         for line in self.items_to_delete:
             self.scene.removeItem(line)
 
         self.items_to_delete = []
 
-        for line in config.row_lines:
+        for line in card.row_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(255, 0, 255))
             self.items_to_delete.append(line_item)
 
-        for line in config.column_lines:
+        for line in card.column_lines:
             line_item = self.scene.addLine(line)
             line_item.setPen(QColor(0, 255, 255))
             self.items_to_delete.append(line_item)
 
-        data = recognizer.parse_card(config)
+        data = card.parse_card()
         word = word_from_data(data)
-        txt  = ascii_card_from_data(data, config.format, word)
+        txt = ascii_card_from_data(data, self.format, word)
 
-        for (x, column) in zip(config.column_x, data):
-            for (y, one) in zip(config.row_y, column):
+        for x, column in zip(card.column_x, data):
+            for y, one in zip(card.row_y, column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
                 if one:
                     dot.setPen(QColor(255, 255, 255))
@@ -494,27 +597,48 @@ class MainWindow(QMainWindow):
         self.text_edit.setText(txt)
 
     def on_ui_change(self):
-        idx = self.selected_recognizer
-        if idx is None: return
-        recognizer = self.recognizers[idx]
-        self.ui_changed(recognizer)
+        idx = self.selected_card_idx
+        if idx is None:
+            return
+        card = self.deck.cards[idx]
+        self.ui_changed(card)
+
+    def on_card_selection(self):
+        selected_items = self.cards_list.selectedItems()
+        if selected_items:
+            item_index = self.cards_list.row(selected_items[0])
+            self.select_card(item_index)
+        else:
+            self.selected_card_idx = None
 
     def on_open(self):
         dialog = QFileDialog(self, "Load Files")
         dialog.setFileMode(QFileDialog.ExistingFiles)
         dialog.setAcceptMode(QFileDialog.AcceptOpen)
 
+        if dialog.exec() == QFileDialog.Accepted and dialog.selectedFiles():
+            deck = Deck.from_paths(dialog.selectedFiles())
+            self.load_deck(deck)
+
+    def on_open_deck(self):
+        dialog = QFileDialog(self, "Load Deck")
+        dialog.setFileMode(QFileDialog.ExistingFile)
+        dialog.setAcceptMode(QFileDialog.AcceptOpen)
+
+        if dialog.exec() == QFileDialog.Accepted and dialog.selectedFiles():
+            with open(dialog.selectedFiles()[0], "r") as f:
+                data = json.load(f)
+                self.load_deck(Deck.from_json(data))
+
+    def on_save_deck(self):
+        dialog = QFileDialog(self, "Save Deck")
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setAcceptMode(QFileDialog.AcceptSave)
+
         if dialog.exec() == QFileDialog.Accepted:
             if dialog.selectedFiles():
-                self.load_images(dialog.selectedFiles())
-
-    def on_card_selection(self):
-        selected_items = self.cards_list.selectedItems()
-        if selected_items:
-            item_index = self.cards_list.row(selected_items[0])
-            self.select_recognizer(item_index)
-        else:
-            self.selected_recognizer = None
+                with open(dialog.selectedFiles()[0], "w") as f:
+                    json.dump(self.deck.to_json(), f)
 
 
 if __name__ == "__main__":
