@@ -116,6 +116,7 @@ class CardFormat:
     columns: int
     rows: int
     reference_width: float
+    reference_height: float
     top_margin: float
     left_margin: float
     columns_spacing: float
@@ -135,9 +136,9 @@ class CardConfig:
 
     @property
     def row_y(self):
-        vertical_scale = self.geometry.height / self.format.reference_width
-
+        vertical_scale = self.geometry.height / self.format.reference_height
         y = self.geometry.top + vertical_scale * self.format.top_margin
+
         for _ in range(self.format.rows):
             yield y
             y += vertical_scale * self.format.rows_spacing
@@ -200,15 +201,24 @@ def ascii_card_from_data(data, card_format, word):
     lines.append('`-' + '-' * card_format.columns)
     return "\n".join(lines)
 
+#CARD_WIDTH = 7.0 + 3.0/8.0 # Inches
+#CARD_HEIGHT = 3.25 # Inches
+#CARD_COL_WIDTH = 0.087 # Inches
+#CARD_HOLE_WIDTH = 0.055 # Inches IBM, 0.056 Control Data
+#CARD_ROW_HEIGHT = 0.25 # Inches
+#CARD_HOLE_HEIGHT = 0.125 # Inches
+#CARD_TOPBOT_MARGIN = 3.0/16.0 # Inches at top and bottom
+#CARD_SIDE_MARGIN = 0.2235 # Inches on each side
 
 test_format = CardFormat(
     columns=80,
     rows=12,
     reference_width=(7 + 3 / 8),
-    top_margin=0.56,
-    left_margin=0.25,
-    rows_spacing=0.56,
-    columns_spacing=0.088,
+    reference_height=3.25,
+    top_margin=(3 / 16),
+    left_margin=0.2235,
+    rows_spacing=1 / 4,
+    columns_spacing=0.087,
 
     threshold=0.2
 )
