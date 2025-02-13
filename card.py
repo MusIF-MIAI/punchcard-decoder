@@ -410,7 +410,7 @@ class MainWindow(QMainWindow):
         self.text_edit.setFont(font)
         self.text_edit.setMinimumHeight(200)
 
-        panel_group = QGroupBox("Card format")
+        panel_group = QGroupBox()
         panel_group.setFlat(True)
         panel_layout = QFormLayout()
 
@@ -469,16 +469,28 @@ class MainWindow(QMainWindow):
         self.cards_list = QListWidget()
         self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
 
-        hor_split = QSplitter(Qt.Horizontal)
-        hor_split.addWidget(self.cards_list)
-        hor_split.addWidget(self.scene_widget)
-        hor_split.addWidget(panel_group)
+        self.setCentralWidget(self.scene_widget)
 
-        split = QSplitter(Qt.Vertical)
-        split.addWidget(hor_split)
-        split.addWidget(self.text_edit)
+        deck_panel = QDockWidget("Deck")
+        deck_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        deck_panel.setWidget(self.cards_list)
+        self.addDockWidget(Qt.LeftDockWidgetArea, deck_panel)
 
-        self.setCentralWidget(split)
+        ascii_card_panel = QDockWidget("Card")
+        ascii_card_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        ascii_card_panel.setWidget(self.text_edit)
+        self.addDockWidget(Qt.BottomDockWidgetArea, ascii_card_panel)
+
+        format_panel = QDockWidget("Format")
+        format_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        format_panel.setWidget(panel_group)
+        self.addDockWidget(Qt.RightDockWidgetArea, format_panel)
 
         self.image_item = QGraphicsPixmapItem()
         self.scene.addItem(self.image_item)
@@ -505,7 +517,7 @@ class MainWindow(QMainWindow):
         self.deck = deck
 
         self.cards_list.clear()
-        self.cards_list.addItems((i.path for i in self.deck.cards))
+        self.cards_list.addItems((i.path.split("/")[-1] for i in self.deck.cards))
 
         self.select_card(0)
 
