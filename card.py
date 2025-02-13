@@ -47,6 +47,7 @@ translate = master_card_to_map(IBM_MODEL_029_KEYPUNCH)
 class ZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super(ZoomableGraphicsView, self).__init__(parent)
+        self.setDragMode(QGraphicsView.ScrollHandDrag)
 
     def wheelEvent(self, event: QWheelEvent):
         oldAnchor = self.transformationAnchor()
@@ -349,22 +350,37 @@ test_format = CardFormat(
 )
 
 
-def create_spinbox(
-    panel_layout, spinbox_type, value_changed, label, single_step=1, decimals=0
-):
-    spinbox = spinbox_type()
-    spinbox.setSingleStep(single_step)
+def create_spinbox(layout, klass, on_change, label, step=1, decimals=0):
+    spinbox = klass()
+    spinbox.setSingleStep(step)
+    spinbox.setMinimumWidth(100)
+
+    spinbox.setMaximum(999999999)
+    spinbox.setMinimum(-999999999)
+
     if decimals != 0:
         spinbox.setDecimals(decimals)
-    spinbox.setMinimumWidth(100)
-    spinbox.valueChanged.connect(value_changed)
-    panel_layout.addRow(label, spinbox)
+
+    if on_change:
+        spinbox.valueChanged.connect(on_change)
+    else:
+        spinbox.setReadOnly(True)
+
+    layout.addRow(label, spinbox)
     return spinbox
 
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
+
+        self.items_to_delete = []
+        self.selected_card_idx = None
+        self.updating = False
+        self.updating_geo_panel = False
+        self.geo_paste_buffer = None
+
+        self.deck = Deck(cards=[])
 
         bar = self.addToolBar("Toolbar")
         bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
@@ -410,62 +426,6 @@ class MainWindow(QMainWindow):
         self.text_edit.setFont(font)
         self.text_edit.setMinimumHeight(200)
 
-        panel_group = QGroupBox()
-        panel_group.setFlat(True)
-        panel_layout = QFormLayout()
-
-        self.columns_edit = create_spinbox(
-            panel_layout, QSpinBox, self.on_ui_change, "Columns"
-        )
-        self.rows_edit = create_spinbox(
-            panel_layout, QSpinBox, self.on_ui_change, "Rows"
-        )
-        self.reference_width_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Reference width",
-            single_step=0.01,
-        )
-        self.top_margin_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Top Margin",
-            single_step=0.01,
-        )
-        self.left_margin_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Left Margin",
-            single_step=0.01,
-        )
-        self.rows_spacing_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Rows Spacing",
-            single_step=0.01,
-        )
-        self.columns_spacing_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Columns Spacing",
-            single_step=0.01,
-            decimals=3,
-        )
-        self.threshold_edit = create_spinbox(
-            panel_layout,
-            QDoubleSpinBox,
-            self.on_ui_change,
-            "Threshold",
-            single_step=0.01,
-        )
-
-        panel_group.setLayout(panel_layout)
-
         self.cards_list = QListWidget()
         self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
 
@@ -489,8 +449,15 @@ class MainWindow(QMainWindow):
         format_panel.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
         )
-        format_panel.setWidget(panel_group)
+        format_panel.setWidget(self.create_format_panel())
         self.addDockWidget(Qt.RightDockWidgetArea, format_panel)
+
+        geometry_panel = QDockWidget("Geometry")
+        geometry_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        geometry_panel.setWidget(self.create_geometry_panel())
+        self.addDockWidget(Qt.RightDockWidgetArea, geometry_panel)
 
         self.image_item = QGraphicsPixmapItem()
         self.scene.addItem(self.image_item)
@@ -507,11 +474,85 @@ class MainWindow(QMainWindow):
         self.rect.setPen(QColor(0, 0, 255))
         self.scene.addItem(self.rect)
 
-        self.items_to_delete = []
+    def create_format_panel(self):
+        panel_group = QGroupBox()
+        panel_group.setFlat(True)
+        panel_layout = QFormLayout()
 
-        self.selected_card_idx = None
+        self.columns_edit = create_spinbox(
+            panel_layout, QSpinBox, self.on_ui_change, "Columns"
+        )
+        self.rows_edit = create_spinbox(
+            panel_layout, QSpinBox, self.on_ui_change, "Rows"
+        )
 
-        self.deck = Deck(cards=[])
+        self.reference_width_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Reference width",
+            step=0.01,
+        )
+        self.top_margin_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Top Margin",
+            step=0.01,
+        )
+        self.left_margin_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Left Margin",
+            step=0.01,
+        )
+        self.rows_spacing_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Rows Spacing",
+            step=0.01,
+        )
+        self.columns_spacing_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Columns Spacing",
+            step=0.01,
+            decimals=3,
+        )
+        self.threshold_edit = create_spinbox(
+            panel_layout,
+            QDoubleSpinBox,
+            self.on_ui_change,
+            "Threshold",
+            step=0.01,
+        )
+
+        panel_group.setLayout(panel_layout)
+        return panel_group
+
+    def create_geometry_panel(self):
+        layout = QFormLayout()
+        self.geometry_top_edit = create_spinbox(layout, QSpinBox, None, "Top")
+        self.geometry_right_edit = create_spinbox(layout, QSpinBox, None, "Right")
+        self.geometry_bottom_edit = create_spinbox(layout, QSpinBox, None, "Bottom")
+        self.geometry_left_edit = create_spinbox(layout, QSpinBox, None, "Left")
+
+        self.copy_button = QPushButton("Copy")
+        self.copy_button.clicked.connect(self.on_geo_copy_button)
+        layout.addRow(self.copy_button)
+
+        self.paste_button = QPushButton("Paste")
+        self.paste_button.clicked.connect(self.on_geo_paste_button)
+        self.paste_button.setEnabled(self.geo_paste_buffer is not None)
+        layout.addRow(self.paste_button)
+
+        group = QGroupBox()
+        group.setFlat(True)
+        group.setLayout(layout)
+        return group
 
     def load_deck(self, deck):
         self.deck = deck
@@ -525,7 +566,7 @@ class MainWindow(QMainWindow):
         card = self.deck.cards[idx]
         self.selected_card_idx = idx
         self.image_item.setPixmap(card.image_pixmap)
-        self.set_ui_values(card)
+        self.set_ui_values()
         self.redraw_grid_and_text(card)
 
     @property
@@ -536,7 +577,7 @@ class MainWindow(QMainWindow):
     def geometry(self):
         return self.deck.cards[self.selected_card_idx].geometry
 
-    def set_ui_values(self, card):
+    def set_ui_values(self):
         self.updating = True
         self.top_left_handle.setPos(self.geometry.top_left)
         self.bottom_right_handle.setPos(self.geometry.bottom_right)
@@ -548,6 +589,10 @@ class MainWindow(QMainWindow):
         self.rows_spacing_edit.setValue(self.format.rows_spacing)
         self.columns_spacing_edit.setValue(self.format.columns_spacing)
         self.threshold_edit.setValue(self.format.threshold)
+        self.geometry_top_edit.setValue(self.geometry.top)
+        self.geometry_right_edit.setValue(self.geometry.right)
+        self.geometry_bottom_edit.setValue(self.geometry.bottom)
+        self.geometry_left_edit.setValue(self.geometry.left)
         self.updating = False
 
     def ui_changed(self, card):
@@ -592,15 +637,16 @@ class MainWindow(QMainWindow):
         word = word_from_data(data)
         txt = ascii_card_from_data(data, self.format, word)
 
+        colors = {
+            False: QColor(0, 0, 0),
+            True: QColor(255, 255, 255),
+        }
+
         for x, column in zip(card.column_x, data):
             for y, one in zip(card.row_y, column):
                 dot = QGraphicsEllipseItem(QRect(-2 + x, -4 + y, 4, 8))
-                if one:
-                    dot.setPen(QColor(255, 255, 255))
-                    dot.setBrush(QColor(0, 0, 0))
-                else:
-                    dot.setPen(QColor(0, 0, 0))
-                    dot.setBrush(QColor(255, 255, 255))
+                dot.setPen(colors[one])
+                dot.setBrush(colors[not one])
 
                 self.scene.addItem(dot)
                 self.items_to_delete.append(dot)
@@ -651,6 +697,21 @@ class MainWindow(QMainWindow):
             if dialog.selectedFiles():
                 with open(dialog.selectedFiles()[0], "w") as f:
                     json.dump(self.deck.to_json(), f)
+
+    def on_geo_copy_button(self):
+        self.geo_paste_buffer = deepcopy(self.geometry)
+        self.paste_button.setEnabled(True)
+
+    def on_geo_paste_button(self):
+        if self.geo_paste_buffer is None:
+            return
+
+        self.geometry.top = self.geo_paste_buffer.top
+        self.geometry.right = self.geo_paste_buffer.right
+        self.geometry.bottom = self.geo_paste_buffer.bottom
+        self.geometry.left = self.geo_paste_buffer.left
+        self.set_ui_values()
+        self.on_ui_change()
 
 
 if __name__ == "__main__":
