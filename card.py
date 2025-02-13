@@ -421,60 +421,54 @@ class MainWindow(QMainWindow):
         self.scene_widget = ZoomableGraphicsView(self.scene)
 
         font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        self.text_edit = QTextEdit()
-        self.text_edit.setReadOnly(True)
-        self.text_edit.setFont(font)
-        self.text_edit.setMinimumHeight(200)
 
         self.cards_list = QListWidget()
         self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
 
         self.setCentralWidget(self.scene_widget)
 
-        deck_panel = QDockWidget("Deck")
-        deck_panel.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
-        )
-        deck_panel.setWidget(self.cards_list)
-        self.addDockWidget(Qt.LeftDockWidgetArea, deck_panel)
-
-        ascii_card_panel = QDockWidget("Card")
-        ascii_card_panel.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
-        )
-        ascii_card_panel.setWidget(self.text_edit)
-        self.addDockWidget(Qt.BottomDockWidgetArea, ascii_card_panel)
-
-        format_panel = QDockWidget("Format")
-        format_panel.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
-        )
-        format_panel.setWidget(self.create_format_panel())
-        self.addDockWidget(Qt.RightDockWidgetArea, format_panel)
-
-        geometry_panel = QDockWidget("Geometry")
-        geometry_panel.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
-        )
-        geometry_panel.setWidget(self.create_geometry_panel())
-        self.addDockWidget(Qt.RightDockWidgetArea, geometry_panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.deck_panel())
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.ascii_card_panel(font))
+        self.addDockWidget(Qt.RightDockWidgetArea, self.format_panel())
+        self.addDockWidget(Qt.RightDockWidgetArea, self.geometry_panel())
 
         self.image_item = QGraphicsPixmapItem()
         self.scene.addItem(self.image_item)
 
         self.top_left_handle = Handle(None)
-        self.top_left_handle.changed = self.on_ui_change
+        self.top_left_handle.changed = self.on_handle_change
         self.scene.addItem(self.top_left_handle)
 
         self.bottom_right_handle = Handle(None)
-        self.bottom_right_handle.changed = self.on_ui_change
+        self.bottom_right_handle.changed = self.on_handle_change
         self.scene.addItem(self.bottom_right_handle)
 
         self.rect = QGraphicsRectItem()
         self.rect.setPen(QColor(0, 0, 255))
         self.scene.addItem(self.rect)
 
-    def create_format_panel(self):
+    def deck_panel(self):
+        deck_panel = QDockWidget("Deck")
+        deck_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        deck_panel.setWidget(self.cards_list)
+        return deck_panel
+
+    def ascii_card_panel(self, font):
+        self.text_edit = QTextEdit()
+        self.text_edit.setReadOnly(True)
+        self.text_edit.setFont(font)
+        self.text_edit.setMinimumHeight(200)
+
+        ascii_card_panel = QDockWidget("Card")
+        ascii_card_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        ascii_card_panel.setWidget(self.text_edit)
+        return ascii_card_panel
+
+    def format_panel(self):
         panel_group = QGroupBox()
         panel_group.setFlat(True)
         panel_layout = QFormLayout()
@@ -531,9 +525,14 @@ class MainWindow(QMainWindow):
         )
 
         panel_group.setLayout(panel_layout)
-        return panel_group
+        format_panel = QDockWidget("Format")
+        format_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        format_panel.setWidget(panel_group)
+        return format_panel
 
-    def create_geometry_panel(self):
+    def geometry_panel(self):
         layout = QFormLayout()
         self.geometry_top_edit = create_spinbox(layout, QSpinBox, None, "Top")
         self.geometry_right_edit = create_spinbox(layout, QSpinBox, None, "Right")
@@ -552,7 +551,13 @@ class MainWindow(QMainWindow):
         group = QGroupBox()
         group.setFlat(True)
         group.setLayout(layout)
-        return group
+
+        geometry_panel = QDockWidget("Geometry")
+        geometry_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+        geometry_panel.setWidget(group)
+        return geometry_panel
 
     def load_deck(self, deck):
         self.deck = deck
