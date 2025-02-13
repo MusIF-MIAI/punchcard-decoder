@@ -436,11 +436,11 @@ class MainWindow(QMainWindow):
         self.scene.addItem(self.image_item)
 
         self.top_left_handle = Handle(None)
-        self.top_left_handle.changed = self.on_handle_change
+        self.top_left_handle.changed = self.on_ui_change
         self.scene.addItem(self.top_left_handle)
 
         self.bottom_right_handle = Handle(None)
-        self.bottom_right_handle.changed = self.on_handle_change
+        self.bottom_right_handle.changed = self.on_ui_change
         self.scene.addItem(self.bottom_right_handle)
 
         self.rect = QGraphicsRectItem()
@@ -617,6 +617,11 @@ class MainWindow(QMainWindow):
         self.format.rows_spacing = self.rows_spacing_edit.value()
         self.format.columns_spacing = self.columns_spacing_edit.value()
         self.format.threshold = self.threshold_edit.value()
+
+        self.geometry_bottom_edit.setValue(self.geometry.bottom)
+        self.geometry_left_edit.setValue(self.geometry.left)
+        self.geometry_right_edit.setValue(self.geometry.right)
+        self.geometry_top_edit.setValue(self.geometry.top)
 
         self.redraw_grid_and_text(card)
 
