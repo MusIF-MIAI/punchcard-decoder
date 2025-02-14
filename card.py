@@ -211,6 +211,11 @@ class Card:
 
         return data
 
+    def parse(self, format):
+        data = self.parse_card()
+        word = word_from_data(data)
+        return (data, word, ascii_card_from_data(data, format, word))
+
 
 @dataclass
 class Deck:
@@ -370,6 +375,33 @@ def create_spinbox(layout, klass, on_change, label, step=1, decimals=0):
     return spinbox
 
 
+class CardsTableModel(QAbstractTableModel):
+    def __init__(self, deck):
+        super().__init__()
+        self.deck = deck
+
+    def rowCount(self, parent):
+        return len(self.deck.cards)
+
+    def columnCount(self, parent):
+        return 2
+
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            return self.deck.cards[index.row()].path.split("/")[-1]
+
+    def headerData(self, section, orientation, role):
+        if role == Qt.DisplayRole:
+            if orientation == Qt.Horizontal:
+                return "Card"
+            else:
+                return f"Card {section + 1}"
+
+    def update_card(self, row):
+        index = self.index(row, 0)  # Top-left and bottom-right indexes
+        self.dataChanged.emit(index, index, [Qt.DisplayRole])
+
+
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         QMainWindow.__init__(self, parent)
@@ -420,17 +452,13 @@ class MainWindow(QMainWindow):
         self.scene = QGraphicsScene()
         self.scene_widget = ZoomableGraphicsView(self.scene)
 
-        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-
-        self.cards_list = QListWidget()
-        self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
-
         self.setCentralWidget(self.scene_widget)
 
         self.addDockWidget(Qt.LeftDockWidgetArea, self.deck_panel())
         self.addDockWidget(Qt.BottomDockWidgetArea, self.ascii_card_panel(font))
         self.addDockWidget(Qt.RightDockWidgetArea, self.format_panel())
         self.addDockWidget(Qt.RightDockWidgetArea, self.geometry_panel())
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.card_list_panel(font))
 
         self.image_item = QGraphicsPixmapItem()
         self.scene.addItem(self.image_item)
@@ -448,6 +476,9 @@ class MainWindow(QMainWindow):
         self.scene.addItem(self.rect)
 
     def deck_panel(self):
+        self.cards_list = QListWidget()
+        self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
+
         deck_panel = QDockWidget("Deck")
         deck_panel.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
@@ -559,6 +590,18 @@ class MainWindow(QMainWindow):
         geometry_panel.setWidget(group)
         return geometry_panel
 
+    def card_list_panel(self, font):
+        self.cards_decode_list = QListWidget()
+        self.cards_decode_list.setFont(font)
+
+        card_list_panel = QDockWidget("Cards")
+        card_list_panel.setAllowedAreas(
+            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
+        )
+
+        card_list_panel.setWidget(self.cards_decode_list)
+        return card_list_panel
+
     def load_deck(self, deck):
         self.deck = deck
 
@@ -566,6 +609,11 @@ class MainWindow(QMainWindow):
         self.cards_list.addItems((i.path.split("/")[-1] for i in self.deck.cards))
 
         self.select_card(0)
+
+        self.cards_decode_list.clear()
+        self.cards_decode_list.addItems(
+            (i.parse(self.format)[1] for i in self.deck.cards)
+        )
 
     def select_card(self, idx):
         card = self.deck.cards[idx]
@@ -643,10 +691,7 @@ class MainWindow(QMainWindow):
             line_item.setPen(QColor(0, 255, 255))
             self.items_to_delete.append(line_item)
 
-        data = card.parse_card()
-        word = word_from_data(data)
-        txt = ascii_card_from_data(data, self.format, word)
-
+        data, word, txt = card.parse(self.format)
         colors = {
             False: QColor(0, 0, 0),
             True: QColor(255, 255, 255),
@@ -663,6 +708,10 @@ class MainWindow(QMainWindow):
 
         self.text_label.setText(word)
         self.text_edit.setText(txt)
+
+        thing = self.cards_decode_list.item(self.selected_card_idx)
+        if thing:
+            thing.setText(word)
 
     def on_ui_change(self):
         idx = self.selected_card_idx
