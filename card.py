@@ -376,9 +376,14 @@ def create_spinbox(layout, klass, on_change, label, step=1, decimals=0):
 
 
 class CardsTableModel(QAbstractTableModel):
-    def __init__(self, deck):
+
+    def __init__(self, main):
         super().__init__()
-        self.deck = deck
+        self.main = main
+
+    @property
+    def deck(self):
+        return self.main.deck
 
     def rowCount(self, parent):
         return len(self.deck.cards)
@@ -388,19 +393,22 @@ class CardsTableModel(QAbstractTableModel):
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
-            return self.deck.cards[index.row()].path.split("/")[-1]
+            if index.column() == 0:
+                return self.deck.cards[index.row()].path.split("/")[-1]
+            elif index.column() == 1:
+                card = self.deck.cards[index.row()]
+                return word_from_data(card.parse_card())
+
+        if role == Qt.FontRole:
+            if index.column() == 1:
+                return self.main.font
 
     def headerData(self, section, orientation, role):
         if role == Qt.DisplayRole:
-            if orientation == Qt.Horizontal:
-                return "Card"
-            else:
-                return f"Card {section + 1}"
-
-    def update_card(self, row):
-        index = self.index(row, 0)  # Top-left and bottom-right indexes
-        self.dataChanged.emit(index, index, [Qt.DisplayRole])
-
+            if section == 0:
+                return "Image"
+            elif section == 1:
+                return "Data"
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -413,6 +421,7 @@ class MainWindow(QMainWindow):
         self.geo_paste_buffer = None
 
         self.deck = Deck(cards=[])
+        self.deck_model = CardsTableModel(self)
 
         bar = self.addToolBar("Toolbar")
         bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
@@ -439,57 +448,48 @@ class MainWindow(QMainWindow):
 
         bar.addSeparator()
 
-        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        font.setPointSize(12)
-        font.setWeight(QFont.Bold)
+        self.font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        self.font.setPointSize(12)
+        self.font.setWeight(QFont.Bold)
 
         self.text_label = QLabel()
         self.text_label.setAlignment(Qt.AlignCenter)
         self.text_label.setContentsMargins(10, 10, 10, 10)
-        self.text_label.setFont(font)
+        self.text_label.setFont(self.font)
         bar.addWidget(self.text_label)
 
-        self.scene = QGraphicsScene()
-        self.scene_widget = ZoomableGraphicsView(self.scene)
+        self.scene = self.card_edit_scene()
+        self.setCentralWidget(self.scene.scene_widget)
 
-        self.setCentralWidget(self.scene_widget)
-
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.deck_panel())
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.ascii_card_panel(font))
         self.addDockWidget(Qt.RightDockWidgetArea, self.format_panel())
         self.addDockWidget(Qt.RightDockWidgetArea, self.geometry_panel())
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.card_list_panel(font))
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.cards_list_panel())
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.ascii_card_panel())
+
+    def card_edit_scene(self):
+        scene = QGraphicsScene()
+        scene.scene_widget = ZoomableGraphicsView(scene)
 
         self.image_item = QGraphicsPixmapItem()
-        self.scene.addItem(self.image_item)
+        scene.addItem(self.image_item)
 
         self.top_left_handle = Handle(None)
         self.top_left_handle.changed = self.on_ui_change
-        self.scene.addItem(self.top_left_handle)
+        scene.addItem(self.top_left_handle)
 
         self.bottom_right_handle = Handle(None)
         self.bottom_right_handle.changed = self.on_ui_change
-        self.scene.addItem(self.bottom_right_handle)
+        scene.addItem(self.bottom_right_handle)
 
         self.rect = QGraphicsRectItem()
         self.rect.setPen(QColor(0, 0, 255))
-        self.scene.addItem(self.rect)
+        scene.addItem(self.rect)
+        return scene
 
-    def deck_panel(self):
-        self.cards_list = QListWidget()
-        self.cards_list.itemSelectionChanged.connect(self.on_card_selection)
-
-        deck_panel = QDockWidget("Deck")
-        deck_panel.setAllowedAreas(
-            Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
-        )
-        deck_panel.setWidget(self.cards_list)
-        return deck_panel
-
-    def ascii_card_panel(self, font):
+    def ascii_card_panel(self):
         self.text_edit = QTextEdit()
         self.text_edit.setReadOnly(True)
-        self.text_edit.setFont(font)
+        self.text_edit.setFont(self.font)
         self.text_edit.setMinimumHeight(200)
 
         ascii_card_panel = QDockWidget("Card")
@@ -590,30 +590,33 @@ class MainWindow(QMainWindow):
         geometry_panel.setWidget(group)
         return geometry_panel
 
-    def card_list_panel(self, font):
-        self.cards_decode_list = QListWidget()
-        self.cards_decode_list.setFont(font)
+    def cards_list_panel(self):
+        self.cards_list = QTableView()
+        self.cards_list.setSelectionBehavior(QTableView.SelectRows)
+        self.cards_list.setSelectionMode(QTableView.SingleSelection)
+        self.cards_list.verticalHeader().setVisible(False)
+        self.cards_list.horizontalHeader().setStretchLastSection(True)
+        self.cards_list.setModel(self.deck_model)
+        self.cards_list.selectionModel().selectionChanged.connect(
+            self.on_card_selection
+        )
 
-        card_list_panel = QDockWidget("Cards")
-        card_list_panel.setAllowedAreas(
+        cards_list_panel = QDockWidget("Cards")
+        cards_list_panel.setAllowedAreas(
             Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea | Qt.BottomDockWidgetArea
         )
-
-        card_list_panel.setWidget(self.cards_decode_list)
-        return card_list_panel
+        cards_list_panel.setWidget(self.cards_list)
+        return cards_list_panel
 
     def load_deck(self, deck):
+        self.deck_model.beginResetModel()
         self.deck = deck
+        self.deck_model.endResetModel()
 
-        self.cards_list.clear()
-        self.cards_list.addItems((i.path.split("/")[-1] for i in self.deck.cards))
+        self.cards_list.resizeColumnsToContents()
 
         self.select_card(0)
-
-        self.cards_decode_list.clear()
-        self.cards_decode_list.addItems(
-            (i.parse(self.format)[1] for i in self.deck.cards)
-        )
+        self.cards_list.selectRow(0)
 
     def select_card(self, idx):
         card = self.deck.cards[idx]
@@ -709,9 +712,8 @@ class MainWindow(QMainWindow):
         self.text_label.setText(word)
         self.text_edit.setText(txt)
 
-        thing = self.cards_decode_list.item(self.selected_card_idx)
-        if thing:
-            thing.setText(word)
+        index = self.deck_model.index(self.selected_card_idx, 1)
+        self.deck_model.dataChanged.emit(index, index, [Qt.DisplayRole])
 
     def on_ui_change(self):
         idx = self.selected_card_idx
@@ -721,9 +723,9 @@ class MainWindow(QMainWindow):
         self.ui_changed(card)
 
     def on_card_selection(self):
-        selected_items = self.cards_list.selectedItems()
-        if selected_items:
-            item_index = self.cards_list.row(selected_items[0])
+        selected_indexes = self.cards_list.selectedIndexes()
+        if selected_indexes:
+            item_index = selected_indexes[0].row()
             self.select_card(item_index)
         else:
             self.selected_card_idx = None
